@@ -1,0 +1,267 @@
+import React from 'react';
+import { 
+  X, Calendar, Users, Award, ShieldCheck, 
+  ArrowUpRight, CheckCircle, Code, UserCheck, Flame 
+} from 'lucide-react';
+
+export default function RequestDetailsModal({ request, isOpen, onClose, onApply }) {
+  if (!isOpen || !request) return null;
+
+  const openPositions = Math.max(0, request.membersNeeded - request.currentTeamSize);
+  const isFull = openPositions === 0;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div 
+        className="modal-content modal-lg" 
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        {/* Header */}
+        <div className="modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <span className="badge badge-primary">
+              {request.category}
+            </span>
+            <span className="badge badge-slate">
+              {request.eventName}
+            </span>
+            {request.urgent && (
+              <span className="badge badge-amber">
+                <Flame size={12} />
+                <span>Urgent</span>
+              </span>
+            )}
+          </div>
+
+          <button className="modal-close-btn" onClick={onClose} aria-label="Close Modal">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Modal Body */}
+        <div className="modal-body">
+          {/* Main Hero Header */}
+          <div className="detail-hero-banner">
+            <h2 style={{ fontSize: '1.65rem', marginBottom: '0.75rem', lineHeight: 1.25 }}>
+              {request.title}
+            </h2>
+            <p style={{ fontSize: '1.02rem', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '1.25rem' }}>
+              {request.fullDesc || request.shortDesc}
+            </p>
+
+            {/* Quick Specs Grid */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+              gap: '0.75rem',
+              background: 'rgba(255, 255, 255, 0.75)',
+              padding: '0.85rem 1rem',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid #e2e8f0'
+            }}>
+              <div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                  Experience
+                </div>
+                <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)' }}>
+                  {request.experienceLevel}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                  Team Status
+                </div>
+                <div style={{ fontWeight: 700, fontSize: '0.92rem', color: isFull ? 'var(--text-muted)' : 'var(--accent-emerald)' }}>
+                  {request.currentTeamSize}/{request.membersNeeded} Members ({openPositions} open)
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                  Deadline
+                </div>
+                <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <Calendar size={13} style={{ color: 'var(--primary)' }} />
+                  <span>{request.deadlineDisplay}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Open Roles Needed */}
+          <div style={{ marginBottom: '1.75rem' }}>
+            <h3 className="detail-section-heading">
+              <Users size={18} style={{ color: 'var(--primary)' }} />
+              <span>Roles Actively Recruited ({openPositions} Open Spot{openPositions > 1 ? 's' : ''})</span>
+            </h3>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.65rem' }}>
+              {request.openRoles && request.openRoles.length > 0 ? (
+                request.openRoles.map((role, idx) => (
+                  <div 
+                    key={idx}
+                    style={{
+                      background: 'var(--accent-emerald-light)',
+                      border: '1px solid #a7f3d0',
+                      color: '#065f46',
+                      padding: '0.45rem 0.85rem',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: '0.88rem',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem'
+                    }}
+                  >
+                    <UserCheck size={15} />
+                    <span>{role}</span>
+                  </div>
+                ))
+              ) : (
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                  General team members welcome!
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Required Skills & Tech Stack */}
+          <div style={{ marginBottom: '1.75rem' }}>
+            <h3 className="detail-section-heading">
+              <Code size={18} style={{ color: 'var(--primary)' }} />
+              <span>Skills & Technologies</span>
+            </h3>
+
+            <div style={{ marginBottom: '0.85rem' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem' }}>
+                Required Student Skills:
+              </span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+                {request.skillsRequired.map((skill, idx) => (
+                  <span key={idx} className="skill-tag" style={{ fontSize: '0.85rem', padding: '0.3rem 0.75rem' }}>
+                    {skill}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {request.techStack && (
+              <div>
+                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem' }}>
+                  Project Architecture / Tech Stack:
+                </span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+                  {request.techStack.map((tech, idx) => (
+                    <span key={idx} className="badge badge-slate" style={{ fontSize: '0.82rem' }}>
+                      {tech}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Current Team Members Roster */}
+          <div style={{ marginBottom: '1.75rem' }}>
+            <h3 className="detail-section-heading">
+              <ShieldCheck size={18} style={{ color: 'var(--primary)' }} />
+              <span>Current Team Roster ({request.currentTeamSize} Members)</span>
+            </h3>
+
+            <div className="member-list-grid">
+              {request.currentMembers.map((member, idx) => (
+                <div key={idx} className="member-card-item">
+                  <img src={member.avatar} alt={member.name} />
+                  <div>
+                    <div className="member-card-name">{member.name}</div>
+                    <div className="member-card-role">{member.role}</div>
+                    <div className="member-card-college">{member.college}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Project Requirements & Expectations */}
+          {request.requirements && request.requirements.length > 0 && (
+            <div style={{ marginBottom: '1.75rem' }}>
+              <h3 className="detail-section-heading">
+                <CheckCircle size={18} style={{ color: 'var(--primary)' }} />
+                <span>Expectations & Requirements</span>
+              </h3>
+              <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {request.requirements.map((req, idx) => (
+                  <li key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', fontSize: '0.92rem', color: 'var(--text-secondary)' }}>
+                    <span style={{ color: 'var(--accent-emerald)', marginTop: '2px' }}>✔</span>
+                    <span>{req}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* About the Project Creator */}
+          <div style={{
+            background: 'var(--surface-alt)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem',
+            flexWrap: 'wrap'
+          }}>
+            <img 
+              src={request.creator.avatar} 
+              alt={request.creator.name} 
+              style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover' }}
+            />
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                <strong style={{ fontSize: '1rem' }}>{request.creator.name}</strong>
+                <span className="badge badge-primary" style={{ fontSize: '0.72rem' }}>
+                  {request.creator.role || 'Project Lead'}
+                </span>
+              </div>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                {request.creator.college}
+              </div>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                "{request.creator.bio || 'Organizing this hackathon squad to build something remarkable.'}"
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Modal Footer with Actions */}
+        <div className="modal-footer">
+          <button 
+            type="button" 
+            className="btn btn-secondary" 
+            onClick={onClose}
+          >
+            Close
+          </button>
+          
+          <button 
+            type="button" 
+            className="btn btn-primary"
+            onClick={() => {
+              onClose();
+              onApply(request);
+            }}
+            disabled={isFull}
+            id="detail-apply-btn"
+            style={isFull ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
+          >
+            <span>{isFull ? 'Team Roster Full' : 'Apply to Join This Team'}</span>
+            <ArrowUpRight size={16} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

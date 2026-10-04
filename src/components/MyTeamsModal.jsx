@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import { 
   X, Users, PlusCircle, Settings, Trash2, Edit3, Check, AlertTriangle, 
   ArrowLeft, ShieldCheck, UserCheck, Clock, ArrowUpRight, Crown, Eye, 

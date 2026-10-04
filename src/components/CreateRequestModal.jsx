@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { X, PlusCircle, Sparkles, Check, AlertCircle } from 'lucide-react';
 import { CATEGORIES, EXPERIENCE_LEVELS, SAMPLE_USER_PROFILE } from '../data/mockData';
+import { useAuth } from '../context/AuthContext';
 
-export default function CreateRequestModal({ isOpen, onClose, onCreateSubmit }) {
+export default function CreateRequestModal({ isOpen, onClose, onCreateSubmit, user: propUser }) {
+  const { user: authUser } = useAuth();
+  const currentUser = propUser || authUser || SAMPLE_USER_PROFILE;
+
   const [formData, setFormData] = useState({
     title: '',
     category: 'Hackathons',
@@ -12,6 +16,7 @@ export default function CreateRequestModal({ isOpen, onClose, onCreateSubmit }) 
     skillsRequired: '',
     techStack: '',
     membersNeeded: '4',
+    ownerIncluded: 'true',
     currentTeamSize: '1',
     experienceLevel: 'Intermediate',
     openRoles: '',
@@ -42,6 +47,11 @@ export default function CreateRequestModal({ isOpen, onClose, onCreateSubmit }) 
       return;
     }
 
+    if (formData.ownerIncluded === '' || formData.ownerIncluded === undefined || formData.ownerIncluded === null) {
+      setErrorMsg('Please specify whether you are included in this team.');
+      return;
+    }
+
     // Split skills & tech stack by commas or spaces
     const skillsList = formData.skillsRequired
       ? formData.skillsRequired.split(',').map(s => s.trim()).filter(Boolean)
@@ -59,6 +69,12 @@ export default function CreateRequestModal({ isOpen, onClose, onCreateSubmit }) 
       ? formData.requirements.split('\n').map(r => r.trim()).filter(Boolean)
       : ['Team player with good communication', 'Ready to hack during event days'];
 
+    const creatorUserId = currentUser.id || `user-${Date.now()}`;
+    const creatorUserEmail = currentUser.email || currentUser.links?.email || '';
+    const isOwnerIncluded = formData.ownerIncluded === 'true' || formData.ownerIncluded === true;
+    const membersNeeded = parseInt(formData.membersNeeded, 10) || 4;
+    const initialTeamSize = isOwnerIncluded ? 1 : 0;
+
     const newRequest = {
       id: `req-${Date.now()}`,
       title: formData.title,
@@ -67,25 +83,30 @@ export default function CreateRequestModal({ isOpen, onClose, onCreateSubmit }) 
       shortDesc: formData.shortDesc,
       fullDesc: formData.fullDesc || formData.shortDesc,
       creator: {
-        name: SAMPLE_USER_PROFILE.name,
-        college: `${SAMPLE_USER_PROFILE.college} • ${SAMPLE_USER_PROFILE.year.split(' ')[0]}`,
-        avatar: SAMPLE_USER_PROFILE.avatar,
-        role: 'Project Creator',
-        bio: SAMPLE_USER_PROFILE.bio
+        id: creatorUserId,
+        name: currentUser.name,
+        email: creatorUserEmail,
+        college: `${currentUser.college || 'Campus Student'}`,
+        avatar: currentUser.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
+        role: currentUser.role || 'Project Creator',
+        bio: currentUser.bio || ''
       },
+      creatorId: creatorUserId,
+      creatorEmail: creatorUserEmail,
       skillsRequired: skillsList,
       techStack: techList,
-      membersNeeded: parseInt(formData.membersNeeded, 10) || 4,
-      currentTeamSize: parseInt(formData.currentTeamSize, 10) || 1,
+      membersNeeded: membersNeeded,
+      currentTeamSize: initialTeamSize,
+      ownerIncluded: isOwnerIncluded,
       openRoles: rolesList,
-      currentMembers: [
+      currentMembers: isOwnerIncluded ? [
         {
-          name: SAMPLE_USER_PROFILE.name,
+          name: currentUser.name,
           role: 'Team Lead',
-          college: SAMPLE_USER_PROFILE.college,
-          avatar: SAMPLE_USER_PROFILE.avatar
+          college: currentUser.college || 'Campus Student',
+          avatar: currentUser.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&auto=format&fit=crop&q=80'
         }
-      ],
+      ] : [],
       experienceLevel: formData.experienceLevel,
       deadline: formData.deadline || '2026-11-20',
       deadlineDisplay: formData.deadline ? new Date(formData.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Nov 20, 2026',
@@ -275,11 +296,88 @@ export default function CreateRequestModal({ isOpen, onClose, onCreateSubmit }) 
               </div>
             </div>
 
+            {/* Are you included in this team? * (Required Field) */}
+            <div className="form-group" style={{ 
+              background: 'var(--surface-alt)', 
+              padding: '1rem', 
+              borderRadius: 'var(--radius-md)', 
+              border: '1px solid var(--border)' 
+            }}>
+              <label className="form-label" style={{ marginBottom: '0.45rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <span>Are you included in this team?</span>
+                <span className="required-star" style={{ color: 'var(--accent-rose)' }}>*</span>
+              </label>
+              
+              <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.4rem', flexWrap: 'wrap' }}>
+                <label style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '0.5rem', 
+                  cursor: 'pointer', 
+                  fontWeight: 500,
+                  fontSize: '0.92rem'
+                }}>
+                  <input 
+                    type="radio" 
+                    id="owner-included-yes"
+                    name="ownerIncluded" 
+                    value="true" 
+                    checked={formData.ownerIncluded === 'true'} 
+                    onChange={handleChange} 
+                    required 
+                  />
+                  <span><strong>Yes</strong> (I occupy 1 seat as Team Member)</span>
+                </label>
+
+                <label style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '0.5rem', 
+                  cursor: 'pointer', 
+                  fontWeight: 500,
+                  fontSize: '0.92rem'
+                }}>
+                  <input 
+                    type="radio" 
+                    id="owner-included-no"
+                    name="ownerIncluded" 
+                    value="false" 
+                    checked={formData.ownerIncluded === 'false'} 
+                    onChange={handleChange} 
+                    required 
+                  />
+                  <span><strong>No</strong> (I manage only as Owner, 0 seats occupied)</span>
+                </label>
+              </div>
+
+              <div style={{ 
+                fontSize: '0.82rem', 
+                color: 'var(--text-secondary)', 
+                marginTop: '0.55rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem'
+              }}>
+                <span style={{ 
+                  background: 'var(--primary-light)', 
+                  color: 'var(--primary)', 
+                  fontWeight: 700, 
+                  padding: '0.15rem 0.45rem', 
+                  borderRadius: 'var(--radius-sm)' 
+                }}>
+                  Seat Calculation
+                </span>
+                <span>
+                  Max Team Size: <strong>{formData.membersNeeded}</strong> | Initial Occupied: <strong>{formData.ownerIncluded === 'true' ? '1 (Owner)' : '0'}</strong> | Initial Remaining Seats: <strong style={{ color: '#059669' }}>{formData.ownerIncluded === 'true' ? (parseInt(formData.membersNeeded, 10) || 4) - 1 : (parseInt(formData.membersNeeded, 10) || 4)}</strong>
+                </span>
+              </div>
+            </div>
+
             {/* Team Size, Experience Level & Deadline */}
             <div className="form-row" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
               <div className="form-group">
                 <label className="form-label" htmlFor="field-members">
-                  Total Team Goal
+                  Total Team Goal <span className="required-star">*</span>
                 </label>
                 <select 
                   id="field-members"

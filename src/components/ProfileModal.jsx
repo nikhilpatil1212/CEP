@@ -6,10 +6,10 @@ import {
 import { GithubIcon, LinkedinIcon } from './SocialIcons';
 import { SAMPLE_USER_PROFILE } from '../data/mockData';
 
-export default function ProfileModal({ isOpen, onClose }) {
+export default function ProfileModal({ isOpen, onClose, user = SAMPLE_USER_PROFILE }) {
   if (!isOpen) return null;
 
-  const profile = SAMPLE_USER_PROFILE;
+  const profile = user || SAMPLE_USER_PROFILE;
 
   return (
     <div className="modal-overlay" onClick={onClose}>

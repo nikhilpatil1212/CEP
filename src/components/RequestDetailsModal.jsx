@@ -1,11 +1,31 @@
 import React from 'react';
 import { 
   X, Calendar, Users, Award, ShieldCheck, 
-  ArrowUpRight, CheckCircle, Code, UserCheck, Flame 
+  ArrowUpRight, CheckCircle, Code, UserCheck, Flame, Trash2 
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
-export default function RequestDetailsModal({ request, isOpen, onClose, onApply }) {
+export default function RequestDetailsModal({ request, isOpen, onClose, onApply, onDelete }) {
+  const { user } = useAuth();
   if (!isOpen || !request) return null;
+
+  const isOwner = Boolean(
+    user && (
+      String(user.id) === String(request.creatorId) ||
+      String(user.id) === String(request.creator?.id) ||
+      (user.email && request.creatorEmail && user.email.toLowerCase() === request.creatorEmail.toLowerCase()) ||
+      (user.email && request.creator?.email && user.email.toLowerCase() === request.creator?.email.toLowerCase())
+    )
+  );
+  const isSeedPost = String(request.id) === 'req-1';
+  const canDelete = isOwner || isSeedPost;
+
+  const handleDelete = () => {
+    if (window.confirm(`Are you sure you want to permanently delete "${request.title}"? This cannot be undone.`)) {
+      if (onDelete) onDelete(request.id);
+      onClose();
+    }
+  };
 
   const openPositions = Math.max(0, request.membersNeeded - request.currentTeamSize);
   const isFull = openPositions === 0;
@@ -35,9 +55,33 @@ export default function RequestDetailsModal({ request, isOpen, onClose, onApply 
             )}
           </div>
 
-          <button className="modal-close-btn" onClick={onClose} aria-label="Close Modal">
-            <X size={18} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {canDelete && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                title="Delete this team post"
+                id="modal-header-delete-btn"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  borderRadius: 'var(--radius-sm)'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = '#e11d48'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; }}
+              >
+                <Trash2 size={17} />
+              </button>
+            )}
+            <button className="modal-close-btn" onClick={onClose} aria-label="Close Modal">
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Modal Body */}
@@ -75,7 +119,7 @@ export default function RequestDetailsModal({ request, isOpen, onClose, onApply 
                   Team Status
                 </div>
                 <div style={{ fontWeight: 700, fontSize: '0.92rem', color: isFull ? 'var(--text-muted)' : 'var(--accent-emerald)' }}>
-                  {request.currentTeamSize}/{request.membersNeeded} Members ({openPositions} open)
+                  {request.currentTeamSize || 0}/{request.membersNeeded || 4} Members ({openPositions} seat{openPositions === 1 ? '' : 's'} remaining)
                 </div>
               </div>
 
@@ -85,7 +129,7 @@ export default function RequestDetailsModal({ request, isOpen, onClose, onApply 
                 </div>
                 <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                   <Calendar size={13} style={{ color: 'var(--primary)' }} />
-                  <span>{request.deadlineDisplay}</span>
+                  <span>{request.deadlineDisplay || 'Flexible'}</span>
                 </div>
               </div>
             </div>
@@ -140,7 +184,7 @@ export default function RequestDetailsModal({ request, isOpen, onClose, onApply 
                 Required Student Skills:
               </span>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
-                {request.skillsRequired.map((skill, idx) => (
+                {(request.skillsRequired || []).map((skill, idx) => (
                   <span key={idx} className="skill-tag" style={{ fontSize: '0.85rem', padding: '0.3rem 0.75rem' }}>
                     {skill}
                   </span>
@@ -154,7 +198,7 @@ export default function RequestDetailsModal({ request, isOpen, onClose, onApply 
                   Project Architecture / Tech Stack:
                 </span>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
-                  {request.techStack.map((tech, idx) => (
+                  {(request.techStack || []).map((tech, idx) => (
                     <span key={idx} className="badge badge-slate" style={{ fontSize: '0.82rem' }}>
                       {tech}
                     </span>
@@ -168,20 +212,29 @@ export default function RequestDetailsModal({ request, isOpen, onClose, onApply 
           <div style={{ marginBottom: '1.75rem' }}>
             <h3 className="detail-section-heading">
               <ShieldCheck size={18} style={{ color: 'var(--primary)' }} />
-              <span>Current Team Roster ({request.currentTeamSize} Members)</span>
+              <span>Current Team Roster ({request.currentTeamSize || 0} Members)</span>
             </h3>
 
             <div className="member-list-grid">
-              {request.currentMembers.map((member, idx) => (
-                <div key={idx} className="member-card-item">
-                  <img src={member.avatar} alt={member.name} />
-                  <div>
-                    <div className="member-card-name">{member.name}</div>
-                    <div className="member-card-role">{member.role}</div>
-                    <div className="member-card-college">{member.college}</div>
-                  </div>
+              {(!request.currentMembers || request.currentMembers.length === 0) ? (
+                <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  No members added to roster yet.
                 </div>
-              ))}
+              ) : (
+                request.currentMembers.map((member, idx) => (
+                  <div key={idx} className="member-card-item">
+                    <img 
+                      src={member.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&auto=format&fit=crop&q=80'} 
+                      alt={member.name} 
+                    />
+                    <div>
+                      <div className="member-card-name">{member.name}</div>
+                      <div className="member-card-role">{member.role || 'Teammate'}</div>
+                      <div className="member-card-college">{member.college || 'Campus Student'}</div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -237,29 +290,49 @@ export default function RequestDetailsModal({ request, isOpen, onClose, onApply 
         </div>
 
         {/* Modal Footer with Actions */}
-        <div className="modal-footer">
-          <button 
-            type="button" 
-            className="btn btn-secondary" 
-            onClick={onClose}
-          >
-            Close
-          </button>
-          
-          <button 
-            type="button" 
-            className="btn btn-primary"
-            onClick={() => {
-              onClose();
-              onApply(request);
-            }}
-            disabled={isFull}
-            id="detail-apply-btn"
-            style={isFull ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
-          >
-            <span>{isFull ? 'Team Roster Full' : 'Apply to Join This Team'}</span>
-            <ArrowUpRight size={16} />
-          </button>
+        <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            {canDelete && (
+              <button 
+                type="button" 
+                className="btn btn-secondary btn-sm" 
+                onClick={handleDelete}
+                id="detail-delete-btn"
+                style={{ color: 'var(--accent-rose)', borderColor: '#fecdd3', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                title="Delete this team post"
+              >
+                <Trash2 size={15} />
+                <span>Delete Post</span>
+              </button>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.65rem' }}>
+            <button 
+              type="button" 
+              className="btn btn-secondary" 
+              onClick={onClose}
+            >
+              Close
+            </button>
+            
+            {!canDelete && (
+              <button 
+                type="button" 
+                className="btn btn-primary"
+                onClick={() => {
+                  onClose();
+                  onApply(request);
+                }}
+                disabled={isFull}
+                id="detail-apply-btn"
+                style={isFull ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
+              >
+                <span>{isFull ? 'Team Roster Full' : 'Apply to Join This Team'}</span>
+                <ArrowUpRight size={16} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

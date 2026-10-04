@@ -7,6 +7,7 @@ export default function RequestList({
   requests, 
   onViewDetails, 
   onApply, 
+  onDelete,
   onCreateRequest,
   searchQuery,
   setSearchQuery 
@@ -131,6 +132,7 @@ export default function RequestList({
                 request={req} 
                 onViewDetails={onViewDetails}
                 onApply={onApply}
+                onDelete={onDelete}
               />
             ))}
           </div>

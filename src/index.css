@@ -235,6 +235,58 @@ a {
   color: var(--text-muted);
 }
 
+/* Notification Bell & Badge */
+.nav-notif-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  transition: var(--transition-fast);
+}
+
+.nav-notif-btn:hover {
+  color: var(--primary);
+  background: var(--primary-light);
+  border-color: var(--border-focus);
+}
+
+.notif-badge-count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-rose);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 5px rgba(244, 63, 94, 0.45);
+  animation: pulse-badge 2.5s infinite ease-in-out;
+}
+
+@keyframes pulse-badge {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.12);
+  }
+}
+
+.notification-app-card:hover {
+  border-color: #c7d2fe;
+  box-shadow: var(--shadow-md);
+}
+
 /* Mobile Menu Toggle */
 .mobile-menu-btn {
   display: none;

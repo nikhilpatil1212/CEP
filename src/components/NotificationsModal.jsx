@@ -1,8 +1,23 @@
 import React from 'react';
 import { 
   X, Check, Bell, UserCheck, ExternalLink, 
-  Clock, ShieldCheck, Inbox, ArrowUpRight, CheckCheck, Sparkles 
+  Clock, ShieldCheck, Inbox, ArrowUpRight, CheckCheck, Sparkles, ArrowRight
 } from 'lucide-react';
+
+function timeAgo(dateString) {
+  if (!dateString) return 'Recently';
+  const now = new Date();
+  const past = new Date(dateString);
+  const diffSec = Math.floor((now - past) / 1000);
+  if (diffSec < 60) return 'Just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+  return past.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
 
 export default function NotificationsModal({
   isOpen,
@@ -11,9 +26,13 @@ export default function NotificationsModal({
   onAccept,
   onReject,
   onMarkAllAsRead,
+  onMarkAsRead,
+  onOpenManageTeam,
   actionLoadingId = null
 }) {
   if (!isOpen) return null;
+
+  const unreadCount = notifications.filter(n => !n.is_read).length;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -33,9 +52,15 @@ export default function NotificationsModal({
             <div>
               <h2 className="modal-title" style={{ fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span>Notifications & Alerts</span>
-                <span className={`badge ${notifications.length > 0 ? 'badge-primary' : 'badge-slate'}`} style={{ fontSize: '0.78rem' }}>
-                  {notifications.length} Total
-                </span>
+                {unreadCount > 0 ? (
+                  <span className="badge badge-primary" style={{ fontSize: '0.78rem' }}>
+                    {unreadCount} New
+                  </span>
+                ) : (
+                  <span className="badge badge-slate" style={{ fontSize: '0.78rem' }}>
+                    {notifications.length} Total
+                  </span>
+                )}
               </h2>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
                 Application activity, approvals, team alerts, and join notifications
@@ -44,7 +69,7 @@ export default function NotificationsModal({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            {onMarkAllAsRead && notifications.length > 0 && (
+            {onMarkAllAsRead && unreadCount > 0 && (
               <button 
                 type="button" 
                 className="btn btn-ghost btn-sm" 
@@ -93,35 +118,52 @@ export default function NotificationsModal({
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
               {notifications.map((item) => {
-                // Support both Notification object and legacy application-as-notification
                 const isDirectNotif = Boolean(item.title && item.message);
                 const isRead = item.is_read;
-                const formattedTime = item.created_at 
-                  ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-                  : 'Recently';
+                const formattedTime = timeAgo(item.created_at);
 
                 if (isDirectNotif) {
+                  const isNewApp = item.type === 'NEW_APPLICATION';
+                  const isApproved = item.type === 'APPLICATION_APPROVED';
+                  const isDenied = item.type === 'APPLICATION_DENIED';
+
                   return (
                     <div 
                       key={item.id}
                       style={{
-                        background: isRead ? 'var(--surface)' : 'var(--surface-alt)',
-                        border: '1px solid var(--border)',
+                        background: isRead ? 'var(--surface)' : 'rgba(99, 102, 241, 0.05)',
+                        border: isRead ? '1px solid var(--border)' : '1px solid rgba(99, 102, 241, 0.3)',
                         borderLeft: isRead ? '1px solid var(--border)' : '4px solid var(--primary)',
                         borderRadius: 'var(--radius-md)',
                         padding: '1rem 1.15rem',
-                        boxShadow: 'var(--shadow-sm)'
+                        boxShadow: 'var(--shadow-sm)',
+                        transition: 'var(--transition-fast)'
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', flex: 1, minWidth: 240 }}>
                           <img 
                             src={item.sender_avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&auto=format&fit=crop&q=80'}
                             alt=""
-                            style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', marginTop: '0.1rem' }}
+                            style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', marginTop: '0.1rem', border: '1px solid var(--border)' }}
                           />
                           <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                              {isNewApp && (
+                                <span className="badge badge-amber" style={{ fontSize: '0.7rem' }}>
+                                  New Application
+                                </span>
+                              )}
+                              {isApproved && (
+                                <span className="badge badge-emerald" style={{ fontSize: '0.7rem' }}>
+                                  Application Approved
+                                </span>
+                              )}
+                              {isDenied && (
+                                <span className="badge badge-rose" style={{ fontSize: '0.7rem' }}>
+                                  Application Update
+                                </span>
+                              )}
                               <strong style={{ fontSize: '0.94rem', color: 'var(--text-main)' }}>
                                 {item.title}
                               </strong>
@@ -131,13 +173,45 @@ export default function NotificationsModal({
                                 </span>
                               )}
                             </div>
-                            <div style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', marginTop: '0.2rem', lineHeight: 1.45 }}>
+                            <div style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginTop: '0.25rem', lineHeight: 1.45 }}>
                               {item.message}
                             </div>
-                            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
-                              {formattedTime} {item.request_title ? `• Team: ${item.request_title}` : ''}
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <span>{formattedTime}</span>
+                              {item.request_title && <span>• Team: <strong>{item.request_title}</strong></span>}
                             </div>
                           </div>
+                        </div>
+
+                        {/* Action: Open / Manage Application (Requirement 3) */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          {isNewApp && item.request_id && onOpenManageTeam && (
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-sm"
+                              onClick={() => {
+                                if (onMarkAsRead && !isRead) onMarkAsRead(item.id);
+                                onOpenManageTeam(item.request_id);
+                              }}
+                              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem' }}
+                            >
+                              <span>View Application</span>
+                              <ArrowRight size={13} />
+                            </button>
+                          )}
+
+                          {!isRead && onMarkAsRead && (
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => onMarkAsRead(item.id)}
+                              style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}
+                              title="Mark as read"
+                            >
+                              <Check size={13} />
+                              <span>Read</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -237,7 +311,7 @@ export default function NotificationsModal({
                           style={{ color: 'var(--accent-rose)', borderColor: '#fecdd3' }}
                         >
                           <X size={14} />
-                          <span>Decline</span>
+                          <span>Reject</span>
                         </button>
 
                         <button 
@@ -248,7 +322,7 @@ export default function NotificationsModal({
                           style={{ background: '#059669', borderColor: '#059669' }}
                         >
                           <Check size={14} strokeWidth={2.5} />
-                          <span>{isProcessing ? 'Adding...' : 'Accept Member'}</span>
+                          <span>{isProcessing ? 'Accepting...' : 'Accept Member'}</span>
                         </button>
                       </div>
                     )}

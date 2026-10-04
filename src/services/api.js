@@ -263,20 +263,15 @@ export async function createRequest(requestData) {
  * Submit an application to join a team request (Protected: attaches auth token)
  */
 export async function submitApplication(requestId, applicationData) {
+  let res;
   try {
-    const res = await fetch(`${API_BASE_URL}/requests/${requestId}/applications`, {
+    res = await fetch(`${API_BASE_URL}/requests/${requestId}/applications`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(applicationData)
     });
-
-    if (!res.ok) {
-      const errorData = await res.json().catch(() => ({}));
-      throw new Error(errorData.error || `Failed to submit application: ${res.statusText}`);
-    }
-    return await res.json();
-  } catch (err) {
-    console.warn('Backend unavailable for application submission, using simulated demo:', err.message);
+  } catch (netErr) {
+    console.warn('Backend network unreachable, using simulated demo:', netErr.message);
     const newApp = {
       id: `app-demo-${Date.now()}`,
       request_id: requestId,
@@ -301,6 +296,12 @@ export async function submitApplication(requestId, applicationData) {
     }
     return { success: true, simulated: true, application: newApp };
   }
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || `Failed to submit application: ${res.statusText}`);
+  }
+  return data;
 }
 
 /**
@@ -403,14 +404,25 @@ export async function getMyTeams() {
       const data = await res.json().catch(() => ({}));
       throw new Error(data.error || `Failed to fetch your teams: ${res.statusText}`);
     }
-    return await res.json();
+    const data = await res.json();
+    if (data && typeof data === 'object' && Array.isArray(data.all)) {
+      return data;
+    }
+    if (Array.isArray(data)) {
+      return {
+        all: data,
+        hosted: data,
+        joined: []
+      };
+    }
+    return { all: [], hosted: [], joined: [] };
   } catch (err) {
     console.warn('Error fetching my-teams from backend:', err.message);
     try {
       const local = JSON.parse(localStorage.getItem('campusconnect_local_requests') || '[]');
-      return local;
+      return { all: local, hosted: local, joined: [] };
     } catch (e) {
-      return [];
+      return { all: [], hosted: [], joined: [] };
     }
   }
 }

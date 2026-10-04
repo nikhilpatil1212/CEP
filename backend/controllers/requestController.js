@@ -17,8 +17,8 @@ const RequestController = {
       if (!req.user || !req.user.id) {
         return res.status(401).json({ error: 'Authentication required to view your teams.' });
       }
-      const teams = await RequestModel.findByCreatorId(req.user.id);
-      res.json(teams);
+      const teamsData = await RequestModel.findByAssociatedUser(req.user.id);
+      res.json(teamsData);
     } catch (err) {
       next(err);
     }

@@ -136,6 +136,53 @@ const RequestModel = {
     return result.rows.map(row => formatRequestRow(row, membersByRequest[row.id] || []));
   },
 
+  async findByAssociatedUser(userId) {
+    const sql = `
+      SELECT 
+        r.*,
+        u.name AS creator_name,
+        u.college AS creator_college,
+        u.avatar_url AS creator_avatar,
+        u.role_title AS creator_role,
+        u.bio AS creator_bio
+      FROM team_requests r
+      LEFT JOIN users u ON r.creator_id = u.id
+      WHERE r.creator_id = $1 OR r.id IN (SELECT request_id FROM team_members WHERE user_id = $1)
+      ORDER BY r.created_at DESC
+    `;
+    const result = await query(sql, [userId]);
+    if (result.rows.length === 0) {
+      return { all: [], hosted: [], joined: [] };
+    }
+
+    const requestIds = result.rows.map(r => r.id);
+    const membersResult = await query(
+      `SELECT * FROM team_members WHERE request_id = ANY($1::varchar[]) ORDER BY id ASC`,
+      [requestIds]
+    );
+
+    const membersByRequest = {};
+    for (const m of membersResult.rows) {
+      if (!membersByRequest[m.request_id]) membersByRequest[m.request_id] = [];
+      membersByRequest[m.request_id].push(m);
+    }
+
+    const allFormatted = result.rows.map(row => formatRequestRow(row, membersByRequest[row.id] || []));
+
+    const hosted = allFormatted.filter(r => String(r.creatorId) === String(userId) || String(r.creator?.id) === String(userId));
+    const joined = allFormatted.filter(r => {
+      const isLeader = String(r.creatorId) === String(userId) || String(r.creator?.id) === String(userId);
+      const isMember = (r.currentMembers || []).some(m => String(m.userId) === String(userId));
+      return isMember && !isLeader;
+    });
+
+    return {
+      all: allFormatted,
+      hosted,
+      joined
+    };
+  },
+
   async findById(id) {
     const result = await query(
       `SELECT 

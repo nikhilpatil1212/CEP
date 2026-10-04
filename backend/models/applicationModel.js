@@ -82,6 +82,16 @@ const ApplicationModel = {
     return result.rows;
   },
 
+  async findByApplicantAndRequest(applicantId, requestId) {
+    const sql = `
+      SELECT * FROM applications
+      WHERE applicant_id = $1 AND request_id = $2
+      ORDER BY created_at DESC
+    `;
+    const result = await query(sql, [applicantId, requestId]);
+    return result.rows[0] || null;
+  },
+
   async findActiveByApplicantAndRequest(applicantId, requestId) {
     const sql = `
       SELECT * FROM applications
@@ -89,8 +99,8 @@ const ApplicationModel = {
       ORDER BY created_at DESC
     `;
     const result = await query(sql, [applicantId, requestId]);
-    // Active means PENDING or APPROVED
-    const active = result.rows.find(a => a.status === 'PENDING' || a.status === 'APPROVED');
+    // Active means PENDING or APPROVED or ACCEPTED
+    const active = result.rows.find(a => a.status === 'PENDING' || a.status === 'APPROVED' || a.status === 'ACCEPTED');
     return active || null;
   },
 

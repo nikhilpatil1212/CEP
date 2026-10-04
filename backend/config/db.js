@@ -170,7 +170,7 @@ async function handleMemoryQuery(text, params = []) {
   }
 
   // 6. SELECT COUNT(*)::int AS count FROM team_members WHERE user_id = $1
-  if (normalized.includes('from team_members where user_id = $1')) {
+  if (normalized.includes('count(*)') && normalized.includes('from team_members where user_id = $1')) {
     const count = memoryStore.team_members.filter(m => m.user_id === params[0]).length;
     return { rows: [{ count }] };
   }
@@ -192,7 +192,26 @@ async function handleMemoryQuery(text, params = []) {
     };
   }
 
-  // 7b. SELECT r.* FROM team_requests r WHERE r.creator_id = $1 (My Teams)
+  // 7b. SELECT r.* FROM team_requests r WHERE r.creator_id = $1 OR r.id IN (...) (My Teams All/Hosted/Joined)
+  if (normalized.includes('from team_requests r') && (normalized.includes('r.creator_id = $1 or') || normalized.includes('team_members where user_id = $1'))) {
+    const userId = params[0];
+    const memberRequestIds = memoryStore.team_members.filter(m => m.user_id === userId).map(m => m.request_id);
+    const requests = memoryStore.team_requests.filter(r => r.creator_id === userId || memberRequestIds.includes(r.id));
+    const rows = requests.map(r => {
+      const u = memoryStore.users.find(usr => usr.id === r.creator_id) || {};
+      return {
+        ...r,
+        creator_name: u.name || 'Campus Student',
+        creator_college: u.college || 'PICT Pune',
+        creator_avatar: u.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
+        creator_role: u.role_title || 'Project Lead',
+        creator_bio: u.bio || ''
+      };
+    });
+    return { rows };
+  }
+
+  // 7c. SELECT r.* FROM team_requests r WHERE r.creator_id = $1 (My Teams - Hosted only)
   if (normalized.includes('from team_requests r') && normalized.includes('r.creator_id = $1')) {
     const creatorId = params[0];
     const requests = memoryStore.team_requests.filter(r => r.creator_id === creatorId);
@@ -393,9 +412,7 @@ async function handleMemoryQuery(text, params = []) {
   // 12c. Duplicate check: SELECT * FROM applications WHERE applicant_id = $1 AND request_id = $2
   if (normalized.includes('from applications where applicant_id = $1 and request_id = $2')) {
     const list = memoryStore.applications.filter(
-      a => a.applicant_id === params[0] &&
-           a.request_id === params[1] &&
-           (a.status === 'PENDING' || a.status === 'APPROVED')
+      a => a.applicant_id === params[0] && a.request_id === params[1]
     );
     return { rows: list };
   }
@@ -453,6 +470,15 @@ async function handleMemoryQuery(text, params = []) {
     return { rows: [] };
   }
 
+  // 16b. Duplicate notification check
+  if (normalized.includes('from notifications where recipient_id = $1 and application_id = $2 and type = $3')) {
+    const [recipId, appId, notifType] = params;
+    const match = memoryStore.notifications.find(
+      n => n.recipient_id === recipId && n.application_id === appId && n.type === notifType
+    );
+    return { rows: match ? [match] : [] };
+  }
+
   // 17. INSERT INTO notifications
   if (normalized.startsWith('insert into notifications')) {
     const newNotif = {
@@ -472,17 +498,24 @@ async function handleMemoryQuery(text, params = []) {
   }
 
   // 18. SELECT from notifications WHERE recipient_id = $1
-  if (normalized.includes('from notifications') && normalized.includes('recipient_id = $1')) {
+  if (normalized.includes('from notifications') && normalized.includes('n.recipient_id = $1')) {
     const recipientId = params[0];
     const notifs = memoryStore.notifications.filter(n => n.recipient_id === recipientId);
     const enriched = notifs.map(n => {
       const sender = memoryStore.users.find(u => u.id === n.sender_id) || {};
       const req = memoryStore.team_requests.find(r => r.id === n.request_id) || {};
+      const app = memoryStore.applications.find(a => a.id === n.application_id) || {};
       return {
         ...n,
         sender_name: sender.name || 'Student',
         sender_avatar: sender.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&auto=format&fit=crop&q=80',
-        request_title: req.title || 'Team Project'
+        sender_college: sender.college || 'Campus Student',
+        request_title: req.title || 'Team Project',
+        request_event_name: req.event_name || 'Hackathon',
+        application_status: app.status || 'PENDING',
+        applicant_name: app.applicant_name || sender.name || 'Student',
+        role_applied: app.role_applied || 'Teammate',
+        application_pitch: app.pitch || ''
       };
     });
     return { rows: enriched };

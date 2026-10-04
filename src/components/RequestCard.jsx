@@ -1,21 +1,48 @@
 import React from 'react';
-import { Calendar, Users, Flame, ArrowUpRight, Award, Briefcase, Trash2 } from 'lucide-react';
+import { Calendar, Users, Flame, ArrowUpRight, Award, Trash2, Check, Clock, Settings, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-export default function RequestCard({ request, onViewDetails, onApply, onDelete }) {
+export default function RequestCard({ 
+  request, 
+  onViewDetails, 
+  onApply, 
+  onDelete,
+  onManageTeam,
+  userApplications = []
+}) {
   const { user } = useAuth();
-  const openPositions = Math.max(0, request.membersNeeded - request.currentTeamSize);
+  const openPositions = Math.max(0, (request.membersNeeded || 4) - (request.currentTeamSize || 0));
   const isFull = openPositions === 0;
+
+  const currentUserId = user?.id ? String(user.id) : null;
 
   // Authorization: Owner or seed/demo post can delete
   const isOwner = Boolean(
-    user && (
-      String(user.id) === String(request.creatorId) ||
-      String(user.id) === String(request.creator?.id) ||
-      (user.email && request.creatorEmail && user.email.toLowerCase() === request.creatorEmail.toLowerCase()) ||
-      (user.email && request.creator?.email && user.email.toLowerCase() === request.creator?.email.toLowerCase())
+    currentUserId && (
+      String(request.creatorId) === currentUserId ||
+      String(request.creator?.id) === currentUserId ||
+      (user?.email && request.creatorEmail && user.email.toLowerCase() === request.creatorEmail.toLowerCase()) ||
+      (user?.email && request.creator?.email && user.email.toLowerCase() === request.creator?.email.toLowerCase())
     )
   );
+
+  // Check if current user is an accepted member of the team
+  const isMember = Boolean(
+    currentUserId && (
+      (request.currentMembers || []).some(m => String(m.userId) === currentUserId)
+    )
+  );
+
+  // Check user application state for this request
+  const userApp = (userApplications || []).find(
+    a => String(a.request_id || a.requestId) === String(request.id)
+  );
+
+  const appStatus = userApp ? userApp.status : null;
+  const isPending = appStatus === 'PENDING';
+  const isApproved = appStatus === 'APPROVED' || appStatus === 'ACCEPTED' || isMember;
+  const isDenied = appStatus === 'DENIED';
+
   const isSeedPost = String(request.id) === 'req-1';
   const canDelete = isOwner || isSeedPost;
 
@@ -46,7 +73,7 @@ export default function RequestCard({ request, onViewDetails, onApply, onDelete 
         <div className="card-top">
           <div className="event-label">
             <Award size={14} />
-            <span>{request.eventName}</span>
+            <span>{request.eventName || request.category || 'Hackathon'}</span>
           </div>
 
           <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
@@ -79,7 +106,7 @@ export default function RequestCard({ request, onViewDetails, onApply, onDelete 
               </span>
             )}
             <span className={`badge ${getLevelBadgeClass(request.experienceLevel)}`}>
-              {request.experienceLevel}
+              {request.experienceLevel || 'Intermediate'}
             </span>
           </div>
         </div>
@@ -163,7 +190,7 @@ export default function RequestCard({ request, onViewDetails, onApply, onDelete 
           </div>
         </div>
 
-        {/* Actions Grid */}
+        {/* Actions Grid with Dynamic State Buttons (Requirement 2) */}
         <div className="card-actions">
           <button 
             className="btn btn-secondary btn-sm"
@@ -173,24 +200,100 @@ export default function RequestCard({ request, onViewDetails, onApply, onDelete 
             <span>View Details</span>
           </button>
 
-          {canDelete ? (
+          {/* Leader action */}
+          {isOwner ? (
+            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+              <button 
+                className="btn btn-secondary btn-sm"
+                onClick={handleDeleteClick}
+                id={`delete-btn-${request.id}`}
+                style={{ color: 'var(--accent-rose)', borderColor: '#fecdd3', padding: '0.35rem 0.55rem' }}
+                title="Delete this team post"
+              >
+                <Trash2 size={14} />
+              </button>
+              <button 
+                className="btn btn-primary btn-sm"
+                onClick={() => onManageTeam ? onManageTeam(request.id) : onViewDetails(request)}
+                id={`manage-btn-${request.id}`}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <Settings size={14} />
+                <span>Manage Team</span>
+              </button>
+            </div>
+          ) : isApproved ? (
+            /* Joined Team state */
             <button 
               className="btn btn-secondary btn-sm"
-              onClick={handleDeleteClick}
-              id={`delete-btn-${request.id}`}
-              style={{ color: 'var(--accent-rose)', borderColor: '#fecdd3', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-              title="Delete this team post"
+              disabled
+              id={`joined-btn-${request.id}`}
+              style={{
+                background: 'var(--accent-emerald-light)',
+                borderColor: '#a7f3d0',
+                color: '#065f46',
+                cursor: 'default',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                fontWeight: 600
+              }}
             >
-              <Trash2 size={14} />
-              <span>Delete Post</span>
+              <Check size={14} strokeWidth={2.5} />
+              <span>Joined Team</span>
+            </button>
+          ) : isPending ? (
+            /* Application Pending state */
+            <button 
+              className="btn btn-secondary btn-sm"
+              disabled
+              id={`pending-btn-${request.id}`}
+              style={{
+                background: 'var(--accent-amber-light)',
+                borderColor: '#fde68a',
+                color: '#92400e',
+                cursor: 'default',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                fontWeight: 600
+              }}
+            >
+              <Clock size={14} />
+              <span>Application Pending</span>
+            </button>
+          ) : isDenied ? (
+            /* Application Denied state */
+            <button 
+              className="btn btn-secondary btn-sm"
+              disabled
+              id={`denied-btn-${request.id}`}
+              style={{
+                background: '#fef2f2',
+                borderColor: '#fecdd3',
+                color: '#9f1239',
+                cursor: 'not-allowed',
+                fontWeight: 600
+              }}
+            >
+              <span>Application Denied</span>
+            </button>
+          ) : isFull ? (
+            /* Team Full state */
+            <button 
+              className="btn btn-primary btn-sm"
+              disabled
+              id={`full-btn-${request.id}`}
+              style={{ opacity: 0.6, cursor: 'not-allowed' }}
+            >
+              <span>Team Full</span>
             </button>
           ) : (
+            /* No Application state: Apply to Team */
             <button 
               className="btn btn-primary btn-sm"
               onClick={() => onApply(request)}
-              disabled={isFull}
               id={`apply-btn-${request.id}`}
-              style={isFull ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
             >
               <span>Apply to Team</span>
               <ArrowUpRight size={14} />

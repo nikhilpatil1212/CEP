@@ -43,11 +43,11 @@ const ApplicationController = {
         return res.status(400).json({ error: 'You are already an approved member of this team.' });
       }
 
-      // Check for existing active application (PENDING or APPROVED)
-      const existingActiveApp = await ApplicationModel.findActiveByApplicantAndRequest(req.user.id, requestId);
-      if (existingActiveApp) {
+      // Check for existing application (Requirement 2: Strict duplicate prevention)
+      const existingApp = await ApplicationModel.findByApplicantAndRequest(req.user.id, requestId);
+      if (existingApp) {
         return res.status(400).json({
-          error: `You already have an active application (${existingActiveApp.status}) for this team.`
+          error: 'You have already applied to this team.'
         });
       }
 
@@ -67,17 +67,20 @@ const ApplicationController = {
 
       const application = await ApplicationModel.create(applicationData);
 
-      // CRITICAL FIX: Send notification to the TEAM OWNER (Student A), NOT the applicant (Student B)!
+      // Send notification to the TEAM LEADER / OWNER
       try {
-        await NotificationModel.create({
-          recipientId: request.creatorId || request.creator?.id,
-          senderId: req.user.id,
-          requestId: request.id,
-          applicationId: application.id,
-          type: 'NEW_APPLICATION',
-          title: 'New Team Application',
-          message: `${req.user.name} applied to join ${request.title}`
-        });
+        const leaderId = request.creatorId || request.creator?.id;
+        if (leaderId) {
+          await NotificationModel.create({
+            recipientId: leaderId,
+            senderId: req.user.id,
+            requestId: request.id,
+            applicationId: application.id,
+            type: 'NEW_APPLICATION',
+            title: 'New Team Application',
+            message: `${req.user.name} has applied to join your team "${request.title}".`
+          });
+        }
       } catch (notifErr) {
         console.error('Failed to create application notification:', notifErr.message);
       }
@@ -217,8 +220,8 @@ const ApplicationController = {
             requestId: application.request_id,
             applicationId: application.id,
             type: 'APPLICATION_APPROVED',
-            title: 'Application Approved!',
-            message: `Your application to join ${request.title} has been approved!`
+            title: 'Application Accepted! 🎉',
+            message: `Congratulations! Your application to join "${request.title}" has been approved. You are now an official team member!`
           });
         } catch (notifErr) {
           console.error('Failed to create approval notification:', notifErr.message);

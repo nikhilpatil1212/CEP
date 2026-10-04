@@ -2,6 +2,15 @@ const { query } = require('../config/db');
 
 const NotificationModel = {
   async create({ recipientId, senderId, requestId, applicationId, type, title, message }) {
+    // Prevent duplicate notification for the same application and type
+    if (applicationId && recipientId) {
+      const checkSql = `SELECT * FROM notifications WHERE recipient_id = $1 AND application_id = $2 AND type = $3 LIMIT 1`;
+      const existing = await query(checkSql, [recipientId, applicationId, type]);
+      if (existing.rows && existing.rows.length > 0) {
+        return existing.rows[0];
+      }
+    }
+
     const id = `notif-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
     const sql = `
       INSERT INTO notifications (
@@ -30,10 +39,17 @@ const NotificationModel = {
         n.*, 
         u.name AS sender_name, 
         u.avatar_url AS sender_avatar, 
-        r.title AS request_title
+        u.college AS sender_college,
+        r.title AS request_title,
+        r.event_name AS request_event_name,
+        a.status AS application_status,
+        a.applicant_name,
+        a.role_applied,
+        a.pitch AS application_pitch
       FROM notifications n
       LEFT JOIN users u ON n.sender_id = u.id
       LEFT JOIN team_requests r ON n.request_id = r.id
+      LEFT JOIN applications a ON n.application_id = a.id
       WHERE n.recipient_id = $1
       ORDER BY n.created_at DESC
     `;

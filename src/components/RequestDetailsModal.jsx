@@ -1,22 +1,48 @@
 import React from 'react';
 import { 
   X, Calendar, Users, Award, ShieldCheck, 
-  ArrowUpRight, CheckCircle, Code, UserCheck, Flame, Trash2 
+  ArrowUpRight, CheckCircle, Code, UserCheck, Flame, Trash2, Check, Clock, Settings 
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-export default function RequestDetailsModal({ request, isOpen, onClose, onApply, onDelete }) {
+export default function RequestDetailsModal({ 
+  request, 
+  isOpen, 
+  onClose, 
+  onApply, 
+  onDelete,
+  onManageTeam,
+  userApplications = []
+}) {
   const { user } = useAuth();
   if (!isOpen || !request) return null;
 
+  const currentUserId = user?.id ? String(user.id) : null;
+
   const isOwner = Boolean(
-    user && (
-      String(user.id) === String(request.creatorId) ||
-      String(user.id) === String(request.creator?.id) ||
-      (user.email && request.creatorEmail && user.email.toLowerCase() === request.creatorEmail.toLowerCase()) ||
-      (user.email && request.creator?.email && user.email.toLowerCase() === request.creator?.email.toLowerCase())
+    currentUserId && (
+      String(request.creatorId) === currentUserId ||
+      String(request.creator?.id) === currentUserId ||
+      (user?.email && request.creatorEmail && user.email.toLowerCase() === request.creatorEmail.toLowerCase()) ||
+      (user?.email && request.creator?.email && user.email.toLowerCase() === request.creator?.email.toLowerCase())
     )
   );
+
+  const isMember = Boolean(
+    currentUserId && (
+      (request.currentMembers || []).some(m => String(m.userId) === currentUserId)
+    )
+  );
+
+  const userApp = (userApplications || []).find(
+    a => String(a.request_id || a.requestId) === String(request.id)
+  );
+
+  const appStatus = userApp ? userApp.status : null;
+  const isPending = appStatus === 'PENDING';
+  const isApproved = appStatus === 'APPROVED' || appStatus === 'ACCEPTED' || isMember;
+  const isDenied = appStatus === 'DENIED';
+
   const isSeedPost = String(request.id) === 'req-1';
   const canDelete = isOwner || isSeedPost;
 
@@ -27,7 +53,7 @@ export default function RequestDetailsModal({ request, isOpen, onClose, onApply,
     }
   };
 
-  const openPositions = Math.max(0, request.membersNeeded - request.currentTeamSize);
+  const openPositions = Math.max(0, (request.membersNeeded || 4) - (request.currentTeamSize || 0));
   const isFull = openPositions === 0;
 
   return (
@@ -44,13 +70,25 @@ export default function RequestDetailsModal({ request, isOpen, onClose, onApply,
             <span className="badge badge-primary">
               {request.category}
             </span>
-            <span className="badge badge-slate">
-              {request.eventName}
-            </span>
+            {request.eventName && (
+              <span className="badge badge-slate">
+                {request.eventName}
+              </span>
+            )}
             {request.urgent && (
               <span className="badge badge-amber">
                 <Flame size={12} />
                 <span>Urgent</span>
+              </span>
+            )}
+            {isOwner && (
+              <span className="badge badge-amber">
+                Your Team (Leader)
+              </span>
+            )}
+            {isMember && !isOwner && (
+              <span className="badge badge-emerald">
+                Joined Member
               </span>
             )}
           </div>
@@ -110,7 +148,7 @@ export default function RequestDetailsModal({ request, isOpen, onClose, onApply,
                   Experience
                 </div>
                 <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)' }}>
-                  {request.experienceLevel}
+                  {request.experienceLevel || 'Intermediate'}
                 </div>
               </div>
 
@@ -268,28 +306,28 @@ export default function RequestDetailsModal({ request, isOpen, onClose, onApply,
             flexWrap: 'wrap'
           }}>
             <img 
-              src={request.creator.avatar} 
-              alt={request.creator.name} 
+              src={request.creator?.avatar || request.creator?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80'} 
+              alt={request.creator?.name || 'Lead'} 
               style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover' }}
             />
             <div style={{ flex: 1, minWidth: 200 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
-                <strong style={{ fontSize: '1rem' }}>{request.creator.name}</strong>
+                <strong style={{ fontSize: '1rem' }}>{request.creator?.name || 'Project Lead'}</strong>
                 <span className="badge badge-primary" style={{ fontSize: '0.72rem' }}>
-                  {request.creator.role || 'Project Lead'}
+                  {request.creator?.role || 'Project Lead'}
                 </span>
               </div>
               <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
-                {request.creator.college}
+                {request.creator?.college}
               </div>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                "{request.creator.bio || 'Organizing this hackathon squad to build something remarkable.'}"
+                "{request.creator?.bio || 'Organizing this hackathon squad to build something remarkable.'}"
               </p>
             </div>
           </div>
         </div>
 
-        {/* Modal Footer with Actions */}
+        {/* Modal Footer with Dynamic Action Button */}
         <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             {canDelete && (
@@ -307,7 +345,7 @@ export default function RequestDetailsModal({ request, isOpen, onClose, onApply,
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: '0.65rem' }}>
+          <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
             <button 
               type="button" 
               className="btn btn-secondary" 
@@ -316,7 +354,83 @@ export default function RequestDetailsModal({ request, isOpen, onClose, onApply,
               Close
             </button>
             
-            {!canDelete && (
+            {/* Dynamic Button States according to Application State */}
+            {isOwner ? (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  onClose();
+                  if (onManageTeam) onManageTeam(request.id);
+                }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <Settings size={15} />
+                <span>Manage Team</span>
+              </button>
+            ) : isApproved ? (
+              <button 
+                type="button" 
+                className="btn btn-secondary"
+                disabled
+                style={{
+                  background: 'var(--accent-emerald-light)',
+                  borderColor: '#a7f3d0',
+                  color: '#065f46',
+                  cursor: 'default',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  fontWeight: 600
+                }}
+              >
+                <Check size={16} strokeWidth={2.5} />
+                <span>Joined Team</span>
+              </button>
+            ) : isPending ? (
+              <button 
+                type="button" 
+                className="btn btn-secondary"
+                disabled
+                style={{
+                  background: 'var(--accent-amber-light)',
+                  borderColor: '#fde68a',
+                  color: '#92400e',
+                  cursor: 'default',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  fontWeight: 600
+                }}
+              >
+                <Clock size={16} />
+                <span>Application Pending</span>
+              </button>
+            ) : isDenied ? (
+              <button 
+                type="button" 
+                className="btn btn-secondary"
+                disabled
+                style={{
+                  background: '#fef2f2',
+                  borderColor: '#fecdd3',
+                  color: '#9f1239',
+                  cursor: 'not-allowed',
+                  fontWeight: 600
+                }}
+              >
+                <span>Application Denied</span>
+              </button>
+            ) : isFull ? (
+              <button 
+                type="button" 
+                className="btn btn-primary"
+                disabled
+                style={{ opacity: 0.6, cursor: 'not-allowed' }}
+              >
+                <span>Team Roster Full</span>
+              </button>
+            ) : (
               <button 
                 type="button" 
                 className="btn btn-primary"
@@ -324,11 +438,9 @@ export default function RequestDetailsModal({ request, isOpen, onClose, onApply,
                   onClose();
                   onApply(request);
                 }}
-                disabled={isFull}
                 id="detail-apply-btn"
-                style={isFull ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
               >
-                <span>{isFull ? 'Team Roster Full' : 'Apply to Join This Team'}</span>
+                <span>Apply to Join This Team</span>
                 <ArrowUpRight size={16} />
               </button>
             )}

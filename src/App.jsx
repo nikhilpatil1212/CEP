@@ -30,8 +30,10 @@ import {
   fetchOwnerNotifications,
   acceptApplicationApi,
   rejectApplicationApi,
+  getMyApplications,
   getNotificationsApi,
-  markAllNotificationsReadApi
+  markAllNotificationsReadApi,
+  markNotificationReadApi
 } from './services/api';
 
 function MainContent() {
@@ -48,6 +50,11 @@ function MainContent() {
   const [isMyApplicationsOpen, setIsMyApplicationsOpen] = useState(false);
   const [selectedRequestDetails, setSelectedRequestDetails] = useState(null);
   const [selectedRequestApply, setSelectedRequestApply] = useState(null);
+
+  // Applications submitted by current authenticated user
+  const [userApplications, setUserApplications] = useState([]);
+  const [myTeamsInitialTeamId, setMyTeamsInitialTeamId] = useState(null);
+  const [myTeamsInitialManageMode, setMyTeamsInitialManageMode] = useState(false);
 
   // Notifications state
   const [notifications, setNotifications] = useState([]);
@@ -67,6 +74,22 @@ function MainContent() {
     setTimeout(() => {
       setToast(null);
     }, 4500);
+  };
+
+  // Load user applications
+  const loadUserApplications = async () => {
+    if (!isAuthenticated) {
+      setUserApplications([]);
+      return;
+    }
+    try {
+      const apps = await getMyApplications();
+      if (Array.isArray(apps)) {
+        setUserApplications(apps);
+      }
+    } catch (err) {
+      console.warn('Error loading user applications:', err);
+    }
   };
 
   // Load notifications for authenticated user
@@ -184,12 +207,22 @@ function MainContent() {
     }
   };
 
-  // Fetch notifications on authentication change
+  // Fetch notifications and user applications, poll for live updates (Requirement 3)
   useEffect(() => {
     if (isAuthenticated) {
       loadNotifications(false);
+      loadUserApplications();
+
+      // Poll notifications and user applications every 6 seconds for live updates
+      const interval = setInterval(() => {
+        loadNotifications(false);
+        loadUserApplications();
+      }, 6000);
+
+      return () => clearInterval(interval);
     } else {
       setNotifications([]);
+      setUserApplications([]);
     }
   }, [isAuthenticated, user?.id]);
 
@@ -305,9 +338,9 @@ function MainContent() {
   // Callback on successful Login or Register
   const handleAuthSuccess = () => {
     showToast('🎉 Successfully signed in!');
-    // Alert owner if they have pending applications
     setTimeout(() => {
       loadNotifications(true);
+      loadUserApplications();
     }, 400);
 
     if (pendingAction) {
@@ -351,6 +384,9 @@ function MainContent() {
       // Remove accepted application from pending notifications
       setNotifications(prev => prev.filter(a => a.id !== appId));
       showToast(`🎉 ${app.applicant_name} has joined "${app.request_title || 'the project'}"! Team roster & remaining seats updated.`);
+      loadUserApplications();
+      loadNotifications(false);
+      reloadRequests();
     } catch (err) {
       showToast(`❌ ${err.message || 'Failed to accept application'}`);
     } finally {
@@ -365,6 +401,9 @@ function MainContent() {
       await rejectApplicationApi(appId);
       setNotifications(prev => prev.filter(a => a.id !== appId));
       showToast(`Application from ${app.applicant_name} declined.`);
+      loadUserApplications();
+      loadNotifications(false);
+      reloadRequests();
     } catch (err) {
       showToast(`❌ ${err.message || 'Failed to decline application'}`);
     } finally {
@@ -387,6 +426,8 @@ function MainContent() {
         return next;
       });
       showToast(`🎉 Team request "${requestToAdd.title.slice(0, 28)}..." posted successfully!`);
+      loadUserApplications();
+      reloadRequests();
     } catch (err) {
       setRequests(prev => {
         const next = [newRequest, ...prev];
@@ -404,23 +445,46 @@ function MainContent() {
     }, 300);
   };
 
-  // Apply to team submit handler
+  // Apply to team submit handler with strict duplicate handling (Requirement 2)
   const handleApplySuccess = async (targetRequest, appPayload) => {
     try {
       if (targetRequest && targetRequest.id) {
         await submitApplication(targetRequest.id, appPayload);
       }
-    } catch (err) {
-      console.warn('Application submit error:', err);
-    }
-    const projectTitle = targetRequest?.title || 'the project';
-    const roleName = appPayload?.roleApplied || 'Teammate';
-    showToast(`🚀 Application submitted for "${roleName}" on ${projectTitle}!`);
-
-    // Refresh notifications for owner
-    setTimeout(() => {
+      const projectTitle = targetRequest?.title || 'the project';
+      const roleName = appPayload?.roleApplied || 'Teammate';
+      showToast(`🚀 Application submitted for "${roleName}" on ${projectTitle}!`);
+      loadUserApplications();
       loadNotifications(false);
-    }, 500);
+      reloadRequests();
+    } catch (err) {
+      showToast(`❌ ${err.message || 'Failed to submit application'}`);
+    }
+  };
+
+  // Open MyTeamsModal directly focusing on a specific team
+  const handleOpenManageTeam = (teamId) => {
+    setMyTeamsInitialTeamId(teamId);
+    setMyTeamsInitialManageMode(true);
+    setIsMyTeamsOpen(true);
+  };
+
+  // Open MyTeamsModal from a notification click
+  const handleOpenManageTeamFromNotif = (requestId) => {
+    setIsNotificationsOpen(false);
+    setMyTeamsInitialTeamId(requestId);
+    setMyTeamsInitialManageMode(true);
+    setIsMyTeamsOpen(true);
+  };
+
+  // Mark single notification as read
+  const handleMarkNotificationRead = async (notifId) => {
+    try {
+      await markNotificationReadApi(notifId);
+      setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, is_read: true } : n));
+    } catch (err) {
+      setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, is_read: true } : n));
+    }
   };
 
   const activeUserProfile = user || SAMPLE_USER_PROFILE;
@@ -453,6 +517,8 @@ function MainContent() {
           onViewDetails={(req) => setSelectedRequestDetails(req)}
           onApply={handleTriggerApply}
           onDelete={handleDeleteRequest}
+          onManageTeam={handleOpenManageTeam}
+          userApplications={userApplications}
           onCreateRequest={handleTriggerCreate}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -488,6 +554,8 @@ function MainContent() {
           handleTriggerApply(req);
         }}
         onDelete={handleDeleteRequest}
+        onManageTeam={handleOpenManageTeam}
+        userApplications={userApplications}
       />
 
       {/* Team Application Modal with Logged-in User Profile */}
@@ -499,7 +567,7 @@ function MainContent() {
         onApplySuccess={handleApplySuccess}
       />
 
-      {/* Owner Notifications & Team Applications Modal */}
+      {/* Notifications & Team Applications Modal (Requirement 3) */}
       <NotificationsModal 
         isOpen={isNotificationsOpen}
         onClose={() => setIsNotificationsOpen(false)}
@@ -507,16 +575,24 @@ function MainContent() {
         onAccept={handleAcceptApplication}
         onReject={handleRejectApplication}
         onMarkAllAsRead={handleMarkAllNotificationsRead}
+        onMarkAsRead={handleMarkNotificationRead}
+        onOpenManageTeam={handleOpenManageTeamFromNotif}
         actionLoadingId={notifActionLoadingId}
       />
 
-      {/* My Teams Modal (Owner Team Management & Incoming Applications) */}
+      {/* My Teams Modal (ALL, TEAMS I HOST, TEAMS I JOINED) */}
       <MyTeamsModal 
         isOpen={isMyTeamsOpen}
-        onClose={() => setIsMyTeamsOpen(false)}
+        onClose={() => {
+          setIsMyTeamsOpen(false);
+          setMyTeamsInitialTeamId(null);
+          setMyTeamsInitialManageMode(false);
+        }}
         onOpenCreate={() => { setIsMyTeamsOpen(false); setIsCreateOpen(true); }}
         onTeamUpdated={handleTeamUpdated}
         showToast={showToast}
+        initialTeamId={myTeamsInitialTeamId}
+        initialManageMode={myTeamsInitialManageMode}
       />
 
       {/* My Applications Modal (Submitted Applications & Withdrawal) */}

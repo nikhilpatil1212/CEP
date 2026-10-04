@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
 import { 
   X, Users, PlusCircle, Settings, Trash2, Edit3, Check, AlertTriangle, 
   ArrowLeft, ShieldCheck, UserCheck, Clock, ArrowUpRight, Crown, Eye, 
-  Calendar, Award, Code, CheckCircle, Ban, AlertCircle, Sparkles
+  Calendar, Award, Code, CheckCircle, Ban, AlertCircle, Sparkles,
+  UserMinus, LogOut, Lock, Unlock
 } from 'lucide-react';
 import { 
   getMyTeams, 
@@ -11,7 +11,10 @@ import {
   getTeamApplications, 
   acceptApplicationApi, 
   rejectApplicationApi,
-  deleteApplicationApi 
+  deleteApplicationApi,
+  removeTeamMemberApi,
+  leaveTeamApi,
+  toggleTeamStatusApi
 } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -56,6 +59,17 @@ export default function MyTeamsModal({
   // Delete confirmation
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Member removal confirmation & loading
+  const [confirmRemoveMember, setConfirmRemoveMember] = useState(null); // { teamId, member }
+  const [removingMember, setRemovingMember] = useState(false);
+
+  // Leave team confirmation & loading
+  const [confirmLeaveTeam, setConfirmLeaveTeam] = useState(null); // team
+  const [leavingTeam, setLeavingTeam] = useState(false);
+
+  // Toggle applications status loading
+  const [togglingStatus, setTogglingStatus] = useState(false);
 
   // Current logged in user ID helper
   const currentUserId = authUser?.id ? String(authUser.id) : null;
@@ -224,6 +238,107 @@ export default function MyTeamsModal({
       if (showToast) showToast(`❌ ${err.message || 'Failed to reject application'}`);
     } finally {
       setActionLoadingId(null);
+    }
+  };
+
+  // Leader removes a member from the team
+  const handleExecuteRemoveMember = async (teamId, member) => {
+    setRemovingMember(true);
+    try {
+      const res = await removeTeamMemberApi(teamId, member.userId || member.id);
+      const updatedReq = res.updatedRequest;
+
+      // Update selectedTeam
+      setSelectedTeam(prev => {
+        if (!prev || prev.id !== teamId) return prev;
+        const newMembers = (prev.currentMembers || []).filter(m => String(m.id) !== String(member.id) && String(m.userId) !== String(member.userId));
+        return {
+          ...prev,
+          currentMembers: newMembers,
+          currentTeamSize: Math.max(1, (prev.currentTeamSize || 1) - 1),
+          status: updatedReq?.status || (prev.currentTeamSize - 1 < prev.membersNeeded ? 'OPEN' : prev.status)
+        };
+      });
+
+      // Update teamsData
+      setTeamsData(prev => {
+        const updateList = list => list.map(t => {
+          if (t.id !== teamId) return t;
+          const newMembers = (t.currentMembers || []).filter(m => String(m.id) !== String(member.id) && String(m.userId) !== String(member.userId));
+          return {
+            ...t,
+            currentMembers: newMembers,
+            currentTeamSize: Math.max(1, (t.currentTeamSize || 1) - 1),
+            status: updatedReq?.status || (t.currentTeamSize - 1 < t.membersNeeded ? 'OPEN' : t.status)
+          };
+        });
+        return {
+          all: updateList(prev.all),
+          hosted: updateList(prev.hosted),
+          joined: updateList(prev.joined)
+        };
+      });
+
+      setConfirmRemoveMember(null);
+      if (showToast) showToast(`Member ${member.name} removed from team.`);
+      if (onTeamUpdated) onTeamUpdated(updatedReq || { id: teamId });
+    } catch (err) {
+      if (showToast) showToast(`❌ ${err.message || 'Failed to remove member'}`);
+    } finally {
+      setRemovingMember(false);
+    }
+  };
+
+  // Member leaves a team
+  const handleExecuteLeaveTeam = async (team) => {
+    setLeavingTeam(true);
+    try {
+      const res = await leaveTeamApi(team.id);
+      const updatedReq = res.updatedRequest;
+
+      // Remove team from joined and all
+      setTeamsData(prev => ({
+        all: prev.all.filter(t => t.id !== team.id),
+        hosted: prev.hosted,
+        joined: prev.joined.filter(t => t.id !== team.id)
+      }));
+
+      setViewMode('list');
+      setSelectedTeam(null);
+      setConfirmLeaveTeam(null);
+      if (showToast) showToast(`You have left "${team.title}".`);
+      if (onTeamUpdated) onTeamUpdated(updatedReq || { id: team.id });
+    } catch (err) {
+      if (showToast) showToast(`❌ ${err.message || 'Failed to leave team'}`);
+    } finally {
+      setLeavingTeam(false);
+    }
+  };
+
+  // Leader toggles application status OPEN / CLOSED
+  const handleToggleApplicationsStatus = async (team) => {
+    setTogglingStatus(true);
+    const newStatus = team.status === 'CLOSED' ? 'OPEN' : 'CLOSED';
+    try {
+      const res = await toggleTeamStatusApi(team.id, newStatus);
+      const updatedReq = res.updatedRequest;
+
+      setSelectedTeam(prev => prev ? { ...prev, status: newStatus } : prev);
+      setTeamsData(prev => {
+        const updateList = list => list.map(t => t.id === team.id ? { ...t, status: newStatus } : t);
+        return {
+          all: updateList(prev.all),
+          hosted: updateList(prev.hosted),
+          joined: updateList(prev.joined)
+        };
+      });
+
+      if (showToast) showToast(newStatus === 'CLOSED' ? 'Applications are now closed.' : 'Applications reopened.');
+      if (onTeamUpdated) onTeamUpdated(updatedReq || { id: team.id, status: newStatus });
+    } catch (err) {
+      if (showToast) showToast(`❌ ${err.message || 'Failed to update status'}`);
+    } finally {
+      setTogglingStatus(false);
     }
   };
 
@@ -983,6 +1098,55 @@ export default function MyTeamsModal({
                     <span>Deadline: <strong style={{ color: 'var(--text-main)' }}>{selectedTeam.deadlineDisplay || 'Flexible'}</strong></span>
                     <span>Experience: <strong style={{ color: 'var(--text-main)' }}>{selectedTeam.experienceLevel || 'Intermediate'}</strong></span>
                   </div>
+
+                  {/* Applications Status Controls (Requirement 5) */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '0.75rem',
+                    padding: '0.9rem 1.1rem',
+                    background: 'var(--surface-alt)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-sm)',
+                    marginTop: '0.5rem'
+                  }}>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', textTransform: 'uppercase' }}>
+                        Recruitment Status
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginTop: '0.2rem' }}>
+                        {selectedTeam.status === 'CLOSED' ? (
+                          <span className="badge badge-rose" style={{ fontSize: '0.8rem' }}>
+                            <Lock size={12} />
+                            <span>Applications Closed</span>
+                          </span>
+                        ) : selectedTeam.currentTeamSize >= (selectedTeam.membersNeeded || 4) ? (
+                          <span className="badge badge-amber" style={{ fontSize: '0.8rem' }}>
+                            <AlertCircle size={12} />
+                            <span>Team Full</span>
+                          </span>
+                        ) : (
+                          <span className="badge badge-emerald" style={{ fontSize: '0.8rem' }}>
+                            <CheckCircle size={12} />
+                            <span>Accepting Applications</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => handleToggleApplicationsStatus(selectedTeam)}
+                      disabled={togglingStatus}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem' }}
+                    >
+                      {selectedTeam.status === 'CLOSED' ? <Unlock size={14} /> : <Lock size={14} />}
+                      <span>{togglingStatus ? 'Updating...' : (selectedTeam.status === 'CLOSED' ? 'Reopen Applications' : 'Close Applications')}</span>
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -1042,6 +1206,65 @@ export default function MyTeamsModal({
                                 )}
                               </div>
                             </div>
+
+                            {/* Remove Member Action (Leader only, cannot remove self) */}
+                            {!isLeaderMember && (
+                              <div>
+                                {confirmRemoveMember?.member?.id === member.id || confirmRemoveMember?.member?.userId === member.userId ? (
+                                  <div style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '0.35rem',
+                                    background: '#fef2f2',
+                                    border: '1px solid #fecdd3',
+                                    padding: '0.45rem 0.6rem',
+                                    borderRadius: 'var(--radius-sm)'
+                                  }}>
+                                    <span style={{ fontSize: '0.75rem', color: '#9f1239', fontWeight: 600, lineHeight: 1.2 }}>
+                                      Remove this member from the team?
+                                    </span>
+                                    <div style={{ display: 'flex', gap: '0.35rem' }}>
+                                      <button 
+                                        type="button" 
+                                        className="btn btn-secondary btn-sm"
+                                        style={{ padding: '0.15rem 0.4rem', fontSize: '0.72rem' }}
+                                        onClick={() => setConfirmRemoveMember(null)}
+                                        disabled={removingMember}
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button 
+                                        type="button" 
+                                        className="btn btn-primary btn-sm"
+                                        style={{ padding: '0.15rem 0.4rem', fontSize: '0.72rem', background: '#e11d48', borderColor: '#e11d48' }}
+                                        onClick={() => handleExecuteRemoveMember(selectedTeam.id, member)}
+                                        disabled={removingMember}
+                                      >
+                                        {removingMember ? '...' : 'Remove'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost btn-sm"
+                                    style={{
+                                      color: 'var(--accent-rose)',
+                                      padding: '0.25rem 0.5rem',
+                                      fontSize: '0.76rem',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '0.25rem'
+                                    }}
+                                    onClick={() => setConfirmRemoveMember({ teamId: selectedTeam.id, member })}
+                                    title="Remove this member from team"
+                                  >
+                                    <UserMinus size={13} />
+                                    <span>Remove</span>
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -1228,10 +1451,64 @@ export default function MyTeamsModal({
                       <span>Switch to Manage View</span>
                     </button>
                   ) : (
-                    <span className="badge badge-emerald" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <CheckCircle size={13} />
-                      <span>You are an active member</span>
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                      <span className="badge badge-emerald" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        <CheckCircle size={13} />
+                        <span>Active Member</span>
+                      </span>
+
+                      {/* Leave Team Button with Confirmation (Requirement 2) */}
+                      {confirmLeaveTeam?.id === selectedTeam.id ? (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          background: '#fef2f2',
+                          border: '1px solid #fecdd3',
+                          padding: '0.35rem 0.75rem',
+                          borderRadius: 'var(--radius-sm)'
+                        }}>
+                          <span style={{ fontSize: '0.82rem', color: '#9f1239', fontWeight: 600 }}>
+                            Are you sure you want to leave this team?
+                          </span>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+                            onClick={() => setConfirmLeaveTeam(null)}
+                            disabled={leavingTeam}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', background: '#e11d48', borderColor: '#e11d48' }}
+                            onClick={() => handleExecuteLeaveTeam(selectedTeam)}
+                            disabled={leavingTeam}
+                          >
+                            {leavingTeam ? 'Leaving...' : 'Leave Team'}
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          style={{
+                            color: 'var(--accent-rose)',
+                            borderColor: '#fecdd3',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            fontSize: '0.82rem'
+                          }}
+                          onClick={() => setConfirmLeaveTeam(selectedTeam)}
+                        >
+                          <LogOut size={13} />
+                          <span>Leave Team</span>
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
 

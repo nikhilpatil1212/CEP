@@ -380,6 +380,34 @@ const RequestModel = {
 
     // 3. Return updated request
     return this.findById(requestId);
+  },
+
+  async removeTeamMember(requestId, userIdOrId) {
+    // 1. Delete from team_members
+    await query(
+      `DELETE FROM team_members WHERE request_id = $1 AND (user_id = $2 OR id::text = $2)`,
+      [requestId, String(userIdOrId)]
+    );
+
+    // 2. Decrement current_team_size (ensure non-negative) and reset status if FULL
+    await query(
+      `UPDATE team_requests
+       SET current_team_size = GREATEST(current_team_size - 1, 0),
+           status = CASE WHEN status = 'FULL' THEN 'OPEN' ELSE status END
+       WHERE id = $1`,
+      [requestId]
+    );
+
+    // 3. Return updated request
+    return this.findById(requestId);
+  },
+
+  async updateStatus(requestId, status) {
+    await query(
+      `UPDATE team_requests SET status = $1, updated_at = NOW() WHERE id = $2`,
+      [status, requestId]
+    );
+    return this.findById(requestId);
   }
 };
 

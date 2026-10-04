@@ -1,5 +1,7 @@
 const RequestModel = require('../models/requestModel');
 const UserModel = require('../models/userModel');
+const NotificationModel = require('../models/notificationModel');
+const ApplicationModel = require('../models/applicationModel');
 
 const RequestController = {
   async getAllRequests(req, res, next) {
@@ -112,6 +114,165 @@ const RequestController = {
 
       await RequestModel.delete(id);
       res.json({ message: 'Team deleted successfully.', id });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async removeMember(req, res, next) {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({ error: 'Authentication required.' });
+      }
+
+      const { id, memberId } = req.params;
+      const request = await RequestModel.findById(id);
+      if (!request) {
+        return res.status(404).json({ error: `Team request with id '${id}' not found.` });
+      }
+
+      // Check leader permission (Only the team leader should have this permission)
+      const creatorId = String(request.creatorId || request.creator?.id || '');
+      if (creatorId !== String(req.user.id)) {
+        return res.status(403).json({ error: 'Only the team leader can remove team members.' });
+      }
+
+      // Find the member in currentMembers
+      const members = request.currentMembers || [];
+      const targetMember = members.find(m => String(m.userId) === String(memberId) || String(m.id) === String(memberId));
+      if (!targetMember) {
+        return res.status(404).json({ error: 'Team member not found on this roster.' });
+      }
+
+      // Do NOT allow the leader to remove themselves
+      if (String(targetMember.userId) === String(req.user.id)) {
+        return res.status(400).json({ error: 'You are the team leader and cannot remove yourself from the team.' });
+      }
+
+      // Remove member from team
+      const updatedRequest = await RequestModel.removeTeamMember(id, targetMember.userId || targetMember.id);
+
+      // Clean up application record for this team
+      if (targetMember.userId) {
+        try {
+          await ApplicationModel.deleteByApplicantAndRequest(targetMember.userId, id);
+        } catch (appErr) {
+          console.error('Failed to clean up member application:', appErr.message);
+        }
+      }
+
+      // Notify the removed member
+      if (targetMember.userId) {
+        try {
+          await NotificationModel.create({
+            recipientId: targetMember.userId,
+            senderId: req.user.id,
+            requestId: request.id,
+            type: 'MEMBER_REMOVED',
+            title: 'Removed from Team',
+            message: `You have been removed from team "${request.title}".`
+          });
+        } catch (notifErr) {
+          console.error('Failed to notify removed member:', notifErr.message);
+        }
+      }
+
+      res.json({
+        message: `${targetMember.name} has been removed from the team.`,
+        updatedRequest
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async leaveTeam(req, res, next) {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({ error: 'Authentication required.' });
+      }
+
+      const { id } = req.params;
+      const request = await RequestModel.findById(id);
+      if (!request) {
+        return res.status(404).json({ error: `Team request with id '${id}' not found.` });
+      }
+
+      // The leader should NOT use "Leave Team" because the leader is responsible for the team
+      const creatorId = String(request.creatorId || request.creator?.id || '');
+      if (creatorId === String(req.user.id)) {
+        return res.status(400).json({ error: 'As the team leader, you cannot leave the team. You can manage or delete the team instead.' });
+      }
+
+      // Check if user is actually a member of this team
+      const members = request.currentMembers || [];
+      const isMember = members.some(m => String(m.userId) === String(req.user.id));
+      if (!isMember) {
+        return res.status(400).json({ error: 'You are not a member of this team.' });
+      }
+
+      // Remove the student from the team
+      const updatedRequest = await RequestModel.removeTeamMember(id, req.user.id);
+
+      // Clean up application record for this team
+      try {
+        await ApplicationModel.deleteByApplicantAndRequest(req.user.id, id);
+      } catch (appErr) {
+        console.error('Failed to clean up member application:', appErr.message);
+      }
+
+      // Notify the team leader that the member left
+      if (creatorId) {
+        try {
+          await NotificationModel.create({
+            recipientId: creatorId,
+            senderId: req.user.id,
+            requestId: request.id,
+            type: 'MEMBER_LEFT',
+            title: 'Member Left Team',
+            message: `${req.user.name} has left your team "${request.title}".`
+          });
+        } catch (notifErr) {
+          console.error('Failed to notify team leader:', notifErr.message);
+        }
+      }
+
+      res.json({
+        message: `You have successfully left "${request.title}".`,
+        updatedRequest
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async toggleApplicationsStatus(req, res, next) {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({ error: 'Authentication required.' });
+      }
+
+      const { id } = req.params;
+      const request = await RequestModel.findById(id);
+      if (!request) {
+        return res.status(404).json({ error: `Team request with id '${id}' not found.` });
+      }
+
+      const creatorId = String(request.creatorId || request.creator?.id || '');
+      if (creatorId !== String(req.user.id)) {
+        return res.status(403).json({ error: 'Only the team leader can change applications status.' });
+      }
+
+      let newStatus = req.body.status;
+      if (!newStatus) {
+        newStatus = request.status === 'CLOSED' ? 'OPEN' : 'CLOSED';
+      }
+
+      const updatedRequest = await RequestModel.updateStatus(id, newStatus);
+      res.json({
+        message: `Applications are now ${newStatus === 'CLOSED' ? 'closed' : 'open'}.`,
+        updatedRequest
+      });
     } catch (err) {
       next(err);
     }

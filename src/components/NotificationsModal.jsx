@@ -156,12 +156,27 @@ export default function NotificationsModal({
                               )}
                               {isApproved && (
                                 <span className="badge badge-emerald" style={{ fontSize: '0.7rem' }}>
-                                  Application Approved
+                                  Application Accepted
                                 </span>
                               )}
                               {isDenied && (
                                 <span className="badge badge-rose" style={{ fontSize: '0.7rem' }}>
-                                  Application Update
+                                  Application Rejected
+                                </span>
+                              )}
+                              {item.type === 'NEW_MEMBER_JOINED' && (
+                                <span className="badge badge-emerald" style={{ fontSize: '0.7rem' }}>
+                                  New Member
+                                </span>
+                              )}
+                              {item.type === 'MEMBER_REMOVED' && (
+                                <span className="badge badge-rose" style={{ fontSize: '0.7rem' }}>
+                                  Team Update
+                                </span>
+                              )}
+                              {item.type === 'MEMBER_LEFT' && (
+                                <span className="badge badge-slate" style={{ fontSize: '0.7rem' }}>
+                                  Member Left
                                 </span>
                               )}
                               <strong style={{ fontSize: '0.94rem', color: 'var(--text-main)' }}>

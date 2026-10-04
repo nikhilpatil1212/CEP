@@ -280,12 +280,12 @@ async function handleMemoryQuery(text, params = []) {
   }
 
   // 8. SELECT * FROM team_members WHERE request_id = $1 OR request_id = ANY(...)
-  if (normalized.includes('from team_members where request_id = $1')) {
+  if (normalized.startsWith('select') && normalized.includes('from team_members where request_id = $1')) {
     const members = memoryStore.team_members.filter(m => m.request_id === params[0]);
     return { rows: members };
   }
 
-  if (normalized.includes('from team_members where request_id = any(')) {
+  if (normalized.startsWith('select') && normalized.includes('from team_members where request_id = any(')) {
     const ids = params[0] || [];
     const members = memoryStore.team_members.filter(m => ids.includes(m.request_id));
     return { rows: members };
@@ -372,8 +372,33 @@ async function handleMemoryQuery(text, params = []) {
     return { rows: [] };
   }
 
+  // 9e. DELETE FROM applications WHERE applicant_id = $1 AND request_id = $2
+  if (normalized.startsWith('delete from applications where applicant_id = $1 and request_id = $2')) {
+    const applicantId = params[0];
+    const requestId = params[1];
+    const deleted = [];
+    memoryStore.applications = memoryStore.applications.filter(a => {
+      if (a.applicant_id === applicantId && a.request_id === requestId) {
+        deleted.push(a);
+        return false;
+      }
+      return true;
+    });
+    return { rows: deleted };
+  }
+
   // 10. INSERT INTO team_members
   if (normalized.startsWith('insert into team_members')) {
+    const reqId = params[0];
+    const uId = params[1];
+    // Prevent duplicate entries for same user on same team
+    if (uId) {
+      const existing = memoryStore.team_members.find(m => m.request_id === reqId && String(m.user_id) === String(uId));
+      if (existing) {
+        return { rows: [existing] };
+      }
+    }
+
     const newMember = {
       id: memoryStore.team_members.length + 1,
       request_id: params[0],
@@ -386,6 +411,19 @@ async function handleMemoryQuery(text, params = []) {
     };
     memoryStore.team_members.push(newMember);
     return { rows: [newMember] };
+  }
+
+  // 10b. DELETE FROM team_members
+  if (normalized.includes('delete from team_members')) {
+    const reqId = String(params[0]);
+    const targetUserIdOrId = String(params[1]);
+    const deleted = [];
+    memoryStore.team_members = memoryStore.team_members.filter(m => {
+      const match = String(m.request_id) === reqId && (String(m.user_id) === targetUserIdOrId || String(m.id) === targetUserIdOrId);
+      if (match) deleted.push(m);
+      return !match;
+    });
+    return { rows: deleted };
   }
 
   // 11. INSERT INTO applications
@@ -488,10 +526,30 @@ async function handleMemoryQuery(text, params = []) {
   if (normalized.includes('update team_requests set current_team_size')) {
     const req = memoryStore.team_requests.find(r => r.id === params[0]);
     if (req) {
-      req.current_team_size = (req.current_team_size || 0) + 1;
-      if (req.current_team_size >= req.members_needed) {
-        req.status = 'FULL';
+      if (normalized.includes('current_team_size - 1')) {
+        req.current_team_size = Math.max(1, (req.current_team_size || 1) - 1);
+        if (req.status === 'FULL') {
+          req.status = 'OPEN';
+        }
+      } else {
+        req.current_team_size = (req.current_team_size || 0) + 1;
+        if (req.current_team_size >= req.members_needed) {
+          req.status = 'FULL';
+        }
       }
+      return { rows: [req] };
+    }
+    return { rows: [] };
+  }
+
+  // 16a. UPDATE team_requests SET status = $1 WHERE id = $2
+  if (normalized.startsWith('update team_requests set status = $1')) {
+    const status = params[0];
+    const id = params[1];
+    const req = memoryStore.team_requests.find(r => r.id === id);
+    if (req) {
+      req.status = status;
+      req.updated_at = new Date();
       return { rows: [req] };
     }
     return { rows: [] };
@@ -586,5 +644,6 @@ async function query(text, params) {
 
 module.exports = {
   pool,
-  query
+  query,
+  memoryStore
 };

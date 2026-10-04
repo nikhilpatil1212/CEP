@@ -604,3 +604,53 @@ export async function markAllNotificationsReadApi() {
   return await res.json().catch(() => ({}));
 }
 
+
+/**
+ * Leader removes a member from the team (Leader only)
+ */
+export async function removeTeamMemberApi(requestId, memberId) {
+  const res = await fetch(`${API_BASE_URL}/requests/${requestId}/members/${memberId}`, {
+    method: 'DELETE',
+    headers: getHeaders()
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to remove member.');
+  }
+  return data;
+}
+
+/**
+ * Member leaves a team (Member only)
+ */
+export async function leaveTeamApi(requestId) {
+  const res = await fetch(`${API_BASE_URL}/requests/${requestId}/leave`, {
+    method: 'POST',
+    headers: getHeaders()
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to leave team.');
+  }
+  return data;
+}
+
+/**
+ * Toggle team applications status (OPEN / CLOSED)
+ */
+export async function toggleTeamStatusApi(requestId, status) {
+  const res = await fetch(`${API_BASE_URL}/requests/${requestId}/status`, {
+    method: 'PATCH',
+    headers: getHeaders(),
+    body: JSON.stringify({ status })
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to update applications status.');
+  }
+  return data;
+}
+

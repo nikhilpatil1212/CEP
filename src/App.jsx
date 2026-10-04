@@ -571,6 +571,7 @@ function MainContent() {
         }}
         onDelete={handleDeleteRequest}
         onManageTeam={handleOpenManageTeam}
+        onTeamUpdated={handleTeamUpdated}
         userApplications={userApplications}
       />
 

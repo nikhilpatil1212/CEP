@@ -188,27 +188,47 @@ export default function MyApplicationsModal({
                       {/* Status Badges */}
                       <div>
                         {isPending && (
-                          <span className="badge badge-amber" style={{ fontSize: '0.82rem', padding: '0.35rem 0.65rem' }}>
-                            <Clock size={13} />
-                            <span>Pending Review</span>
-                          </span>
+                          <div style={{ textAlign: 'right' }}>
+                            <span className="badge badge-amber" style={{ fontSize: '0.82rem', padding: '0.35rem 0.65rem' }}>
+                              <Clock size={13} />
+                              <span>Pending</span>
+                            </span>
+                            <div style={{ fontSize: '0.75rem', color: '#b45309', fontWeight: 600, marginTop: '0.25rem' }}>
+                              Waiting for team leader
+                            </div>
+                          </div>
                         )}
                         {isApproved && (
-                          <span className="badge badge-emerald" style={{ fontSize: '0.82rem', padding: '0.35rem 0.65rem' }}>
-                            <Check size={13} strokeWidth={2.5} />
-                            <span>Application Approved</span>
-                          </span>
+                          <div style={{ textAlign: 'right' }}>
+                            <span className="badge badge-emerald" style={{ fontSize: '0.82rem', padding: '0.35rem 0.65rem' }}>
+                              <Check size={13} strokeWidth={2.5} />
+                              <span>Accepted</span>
+                            </span>
+                            <div style={{ fontSize: '0.75rem', color: '#047857', fontWeight: 600, marginTop: '0.25rem' }}>
+                              Accepted — You are now a member of this team
+                            </div>
+                          </div>
                         )}
                         {isDenied && (
-                          <span className="badge badge-rose" style={{ fontSize: '0.82rem', padding: '0.35rem 0.65rem' }}>
-                            <Ban size={13} />
-                            <span>Application Denied</span>
-                          </span>
+                          <div style={{ textAlign: 'right' }}>
+                            <span className="badge badge-rose" style={{ fontSize: '0.82rem', padding: '0.35rem 0.65rem' }}>
+                              <Ban size={13} />
+                              <span>Rejected</span>
+                            </span>
+                            <div style={{ fontSize: '0.75rem', color: '#be123c', fontWeight: 600, marginTop: '0.25rem' }}>
+                              Application rejected
+                            </div>
+                          </div>
                         )}
                         {isWithdrawn && (
-                          <span className="badge badge-slate" style={{ fontSize: '0.82rem', padding: '0.35rem 0.65rem' }}>
-                            <span>Withdrawn</span>
-                          </span>
+                          <div style={{ textAlign: 'right' }}>
+                            <span className="badge badge-slate" style={{ fontSize: '0.82rem', padding: '0.35rem 0.65rem' }}>
+                              <span>Withdrawn</span>
+                            </span>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                              Application withdrawn
+                            </div>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -270,7 +290,7 @@ export default function MyApplicationsModal({
                         )}
                       </div>
 
-                      {/* Cancel / Withdraw Application Option (ONLY for PENDING applications) */}
+                      {/* Withdraw Application Option (ONLY for PENDING applications) */}
                       {isPending && (
                         <button 
                           type="button"
@@ -284,7 +304,7 @@ export default function MyApplicationsModal({
                           }}
                         >
                           <X size={14} />
-                          <span>{isProcessing ? 'Cancelling...' : 'Cancel Application'}</span>
+                          <span>{isProcessing ? 'Withdrawing...' : 'Withdraw Application'}</span>
                         </button>
                       )}
 

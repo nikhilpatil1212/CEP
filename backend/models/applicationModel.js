@@ -118,6 +118,14 @@ const ApplicationModel = {
       [id]
     );
     return result.rows[0] || null;
+  },
+
+  async deleteByApplicantAndRequest(applicantId, requestId) {
+    const result = await query(
+      `DELETE FROM applications WHERE applicant_id = $1 AND request_id = $2 RETURNING *`,
+      [applicantId, requestId]
+    );
+    return result.rows;
   }
 };
 

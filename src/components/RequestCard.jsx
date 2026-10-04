@@ -288,6 +288,22 @@ export default function RequestCard({
             >
               <span>Team Full</span>
             </button>
+          ) : request.status === 'CLOSED' ? (
+            /* Applications Closed state (Requirement 5) */
+            <button 
+              className="btn btn-secondary btn-sm"
+              disabled
+              id={`closed-btn-${request.id}`}
+              style={{
+                background: '#fef2f2',
+                borderColor: '#fecdd3',
+                color: '#9f1239',
+                cursor: 'not-allowed',
+                fontWeight: 600
+              }}
+            >
+              <span>Applications Closed</span>
+            </button>
           ) : (
             /* No Application state: Apply to Team */
             <button 

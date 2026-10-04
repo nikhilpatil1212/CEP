@@ -24,6 +24,15 @@ router.put('/:id', authenticateToken, RequestController.updateRequest);
 // DELETE /api/requests/:id - Delete team (Protected, Owner only)
 router.delete('/:id', authenticateToken, RequestController.deleteRequest);
 
+// DELETE /api/requests/:id/members/:memberId - Leader removes a team member (Protected, Leader only)
+router.delete('/:id/members/:memberId', authenticateToken, RequestController.removeMember);
+
+// POST /api/requests/:id/leave - Member leaves team (Protected, Member only)
+router.post('/:id/leave', authenticateToken, RequestController.leaveTeam);
+
+// PATCH /api/requests/:id/status - Toggle team applications status OPEN / CLOSED (Protected, Leader only)
+router.patch('/:id/status', authenticateToken, RequestController.toggleApplicationsStatus);
+
 // POST /api/requests/:requestId/applications - Submit an application for a team request (Protected)
 router.post('/:requestId/applications', authenticateToken, validateCreateApplication, ApplicationController.createApplication);
 

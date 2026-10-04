@@ -26,8 +26,13 @@ const ApplicationController = {
 
       // Check remaining seats - do not allow applications if full
       const remainingSeats = Math.max(0, request.membersNeeded - request.currentTeamSize);
-      if (remainingSeats <= 0) {
+      if (remainingSeats <= 0 || request.status === 'FULL') {
         return res.status(400).json({ error: 'This team roster is already full. No remaining seats.' });
+      }
+
+      // Check if team is closed
+      if (request.status === 'CLOSED') {
+        return res.status(400).json({ error: 'Applications are closed for this team.' });
       }
 
       const applicantId = String(req.user.id);
@@ -43,12 +48,15 @@ const ApplicationController = {
         return res.status(400).json({ error: 'You are already an approved member of this team.' });
       }
 
-      // Check for existing application (Requirement 2: Strict duplicate prevention)
+      // Check for existing application (Requirement 2 & 4: Strict duplicate prevention, allow re-apply if withdrawn)
       const existingApp = await ApplicationModel.findByApplicantAndRequest(req.user.id, requestId);
-      if (existingApp) {
+      if (existingApp && existingApp.status !== 'WITHDRAWN') {
         return res.status(400).json({
           error: 'You have already applied to this team.'
         });
+      }
+      if (existingApp && existingApp.status === 'WITHDRAWN') {
+        await ApplicationModel.delete(existingApp.id);
       }
 
       // Strictly build application using authenticated user's identity
@@ -225,6 +233,27 @@ const ApplicationController = {
           });
         } catch (notifErr) {
           console.error('Failed to create approval notification:', notifErr.message);
+        }
+      }
+
+      // 4. Send notification to other existing team members that a new teammate joined
+      const existingMembers = request.currentMembers || [];
+      for (const m of existingMembers) {
+        const mUserId = m.userId || m.user_id;
+        if (mUserId && String(mUserId) !== String(req.user.id) && String(mUserId) !== String(application.applicant_id)) {
+          try {
+            await NotificationModel.create({
+              recipientId: mUserId,
+              senderId: req.user.id,
+              requestId: application.request_id,
+              applicationId: application.id,
+              type: 'NEW_MEMBER_JOINED',
+              title: 'New Teammate Joined',
+              message: `${application.applicant_name} has joined "${request.title}".`
+            });
+          } catch (notifErr) {
+            console.error('Failed to notify existing team member:', notifErr.message);
+          }
         }
       }
 

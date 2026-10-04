@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   X, Calendar, Users, Award, ShieldCheck, 
-  ArrowUpRight, CheckCircle, Code, UserCheck, Flame, Trash2, Check, Clock, Settings 
+  ArrowUpRight, CheckCircle, Code, UserCheck, Flame, Trash2, Check, Clock, Settings, LogOut, Lock 
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { leaveTeamApi } from '../services/api';
 
 export default function RequestDetailsModal({ 
   request, 
@@ -12,9 +13,13 @@ export default function RequestDetailsModal({
   onApply, 
   onDelete,
   onManageTeam,
+  onTeamUpdated,
   userApplications = []
 }) {
   const { user } = useAuth();
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+
   if (!isOpen || !request) return null;
 
   const currentUserId = user?.id ? String(user.id) : null;
@@ -55,6 +60,22 @@ export default function RequestDetailsModal({
 
   const openPositions = Math.max(0, (request.membersNeeded || 4) - (request.currentTeamSize || 0));
   const isFull = openPositions === 0;
+
+  const handleLeaveTeam = async () => {
+    setLeaving(true);
+    try {
+      const res = await leaveTeamApi(request.id);
+      setConfirmLeave(false);
+      if (onTeamUpdated) {
+        onTeamUpdated(res?.updatedRequest || { id: request.id });
+      }
+      onClose();
+    } catch (err) {
+      alert(err.message || 'Failed to leave team.');
+    } finally {
+      setLeaving(false);
+    }
+  };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -328,7 +349,7 @@ export default function RequestDetailsModal({
         </div>
 
         {/* Modal Footer with Dynamic Action Button */}
-        <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
           <div>
             {canDelete && (
               <button 
@@ -345,7 +366,7 @@ export default function RequestDetailsModal({
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', flexWrap: 'wrap' }}>
             <button 
               type="button" 
               className="btn btn-secondary" 
@@ -369,24 +390,83 @@ export default function RequestDetailsModal({
                 <span>Manage Team</span>
               </button>
             ) : isApproved ? (
-              <button 
-                type="button" 
-                className="btn btn-secondary"
-                disabled
-                style={{
-                  background: 'var(--accent-emerald-light)',
-                  borderColor: '#a7f3d0',
-                  color: '#065f46',
-                  cursor: 'default',
+              confirmLeave ? (
+                <div style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.4rem',
-                  fontWeight: 600
-                }}
-              >
-                <Check size={16} strokeWidth={2.5} />
-                <span>Joined Team</span>
-              </button>
+                  gap: '0.5rem',
+                  background: '#fff1f2',
+                  border: '1px solid #fecdd3',
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: 'var(--radius-md)'
+                }}>
+                  <span style={{ fontSize: '0.84rem', color: '#9f1239', fontWeight: 600 }}>
+                    Are you sure you want to leave this team?
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setConfirmLeave(false)}
+                    disabled={leaving}
+                    style={{ padding: '0.25rem 0.55rem', fontSize: '0.8rem' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={handleLeaveTeam}
+                    disabled={leaving}
+                    style={{
+                      background: '#e11d48',
+                      borderColor: '#e11d48',
+                      padding: '0.25rem 0.65rem',
+                      fontSize: '0.8rem',
+                      fontWeight: 600
+                    }}
+                  >
+                    {leaving ? 'Leaving...' : 'Leave Team'}
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary"
+                    disabled
+                    style={{
+                      background: 'var(--accent-emerald-light)',
+                      borderColor: '#a7f3d0',
+                      color: '#065f46',
+                      cursor: 'default',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      fontWeight: 600
+                    }}
+                  >
+                    <Check size={16} strokeWidth={2.5} />
+                    <span>Joined Team</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setConfirmLeave(true)}
+                    style={{
+                      color: '#e11d48',
+                      borderColor: '#fecdd3',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      fontWeight: 600
+                    }}
+                    title="Leave this team"
+                  >
+                    <LogOut size={15} />
+                    <span>Leave Team</span>
+                  </button>
+                </div>
+              )
             ) : isPending ? (
               <button 
                 type="button" 
@@ -428,7 +508,26 @@ export default function RequestDetailsModal({
                 disabled
                 style={{ opacity: 0.6, cursor: 'not-allowed' }}
               >
-                <span>Team Roster Full</span>
+                <span>Team Full</span>
+              </button>
+            ) : request.status === 'CLOSED' ? (
+              <button 
+                type="button" 
+                className="btn btn-secondary"
+                disabled
+                style={{
+                  background: '#fef2f2',
+                  borderColor: '#fecdd3',
+                  color: '#9f1239',
+                  cursor: 'not-allowed',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem'
+                }}
+              >
+                <Lock size={14} />
+                <span>Applications Closed</span>
               </button>
             ) : (
               <button 

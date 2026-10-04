@@ -104,8 +104,35 @@ const memoryStore = {
   notifications: []
 };
 
+// Helper to identify specific demo/seed teams
+function isDemoTeam(r) {
+  if (!r) return false;
+  const title = (r.title || '').trim().toLowerCase();
+  const event = (r.event_name || r.eventName || '').trim().toLowerCase();
+  const id = String(r.id || '');
+  return (
+    id === 'req-1' ||
+    title.includes('open source ml toolkit') ||
+    title.includes('ai smart india hackathon squad') ||
+    title.includes('kisansetu') ||
+    event.includes('gsoc 2026') ||
+    event.includes('sih 2026')
+  );
+}
+
+function purgeDemoTeams() {
+  const demoIds = memoryStore.team_requests.filter(isDemoTeam).map(r => r.id);
+  if (demoIds.length > 0) {
+    memoryStore.team_requests = memoryStore.team_requests.filter(r => !isDemoTeam(r));
+    memoryStore.team_members = memoryStore.team_members.filter(m => !demoIds.includes(m.request_id));
+    memoryStore.applications = memoryStore.applications.filter(a => !demoIds.includes(a.request_id));
+    memoryStore.notifications = memoryStore.notifications.filter(n => !demoIds.includes(n.request_id));
+  }
+}
+
 // Simple in-memory query handler
 async function handleMemoryQuery(text, params = []) {
+  purgeDemoTeams();
   const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
 
   // 1. SELECT * FROM users WHERE id = $1

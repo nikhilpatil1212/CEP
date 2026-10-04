@@ -36,6 +36,22 @@ import {
   markNotificationReadApi
 } from './services/api';
 
+// Helper to identify specific demo/seed teams to prevent them from showing
+const isDemoTeam = (r) => {
+  if (!r) return false;
+  const title = (r.title || '').trim().toLowerCase();
+  const event = (r.eventName || r.event_name || '').trim().toLowerCase();
+  const id = String(r.id || '');
+  return (
+    id === 'req-1' ||
+    title.includes('open source ml toolkit') ||
+    title.includes('ai smart india hackathon squad') ||
+    title.includes('kisansetu') ||
+    event.includes('gsoc 2026') ||
+    event.includes('sih 2026')
+  );
+};
+
 function MainContent() {
   const { user, isAuthenticated, logout } = useAuth();
 
@@ -134,7 +150,7 @@ function MainContent() {
     try {
       const backendRequests = await getRequests();
       if (backendRequests && Array.isArray(backendRequests)) {
-        setRequests(backendRequests);
+        setRequests(backendRequests.filter(r => !isDemoTeam(r)));
       }
     } catch (err) {
       console.warn('Error reloading requests:', err);
@@ -228,10 +244,10 @@ function MainContent() {
 
   // Fetch team requests on initial load
   useEffect(() => {
-    // Purge any stale legacy seed 'req-1' from local storage
+    // Purge any stale legacy seeds and demo teams from local storage
     try {
       const local = JSON.parse(localStorage.getItem('campusconnect_local_requests') || '[]');
-      const cleaned = local.filter(r => r.id !== 'req-1');
+      const cleaned = local.filter(r => !isDemoTeam(r));
       if (cleaned.length !== local.length) {
         localStorage.setItem('campusconnect_local_requests', JSON.stringify(cleaned));
       }
@@ -241,7 +257,7 @@ function MainContent() {
       try {
         const backendRequests = await getRequests();
         if (backendRequests && Array.isArray(backendRequests)) {
-          setRequests(backendRequests);
+          setRequests(backendRequests.filter(r => !isDemoTeam(r)));
           return;
         }
       } catch (err) {
@@ -252,7 +268,7 @@ function MainContent() {
       try {
         const localCreated = JSON.parse(localStorage.getItem('campusconnect_local_requests') || '[]');
         if (Array.isArray(localCreated)) {
-          setRequests(localCreated.filter(r => r.id !== 'req-1'));
+          setRequests(localCreated.filter(r => !isDemoTeam(r)));
         }
       } catch (e) {}
     }
@@ -418,9 +434,9 @@ function MainContent() {
       const requestToAdd = savedRequest || newRequest;
 
       setRequests(prev => {
-        const next = [requestToAdd, ...prev.filter(r => r.id !== requestToAdd.id)];
+        const next = [requestToAdd, ...prev.filter(r => r.id !== requestToAdd.id)].filter(r => !isDemoTeam(r));
         try {
-          const custom = next.filter(r => r.id !== 'req-1');
+          const custom = next.filter(r => !isDemoTeam(r));
           localStorage.setItem('campusconnect_local_requests', JSON.stringify(custom));
         } catch (e) {}
         return next;
@@ -430,9 +446,9 @@ function MainContent() {
       reloadRequests();
     } catch (err) {
       setRequests(prev => {
-        const next = [newRequest, ...prev];
+        const next = [newRequest, ...prev].filter(r => !isDemoTeam(r));
         try {
-          const custom = next.filter(r => r.id !== 'req-1');
+          const custom = next.filter(r => !isDemoTeam(r));
           localStorage.setItem('campusconnect_local_requests', JSON.stringify(custom));
         } catch (e) {}
         return next;

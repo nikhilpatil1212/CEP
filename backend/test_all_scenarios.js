@@ -411,6 +411,28 @@ async function runTests() {
   console.log(`   Student B joined teams after re-login: ${inJoinedAfterRelogin}`);
   console.log(`   TEST 11 RESULT: ${inJoinedAfterRelogin ? '✅ PASSED' : '❌ FAILED'}\n`);
 
+  // Clean up created test teams
+  try {
+    if (team?.id) {
+      await request({
+        hostname: 'localhost',
+        port: 5000,
+        path: `/api/requests/${team.id}`,
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${tokenA}` }
+      });
+    }
+    if (team2?.id) {
+      await request({
+        hostname: 'localhost',
+        port: 5000,
+        path: `/api/requests/${team2.id}`,
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${tokenA}` }
+      });
+    }
+  } catch (cleanErr) {}
+
   console.log('====================================================');
   console.log('ALL VERIFICATION TESTS COMPLETED SUCCESSFULLY! 🎉');
   console.log('====================================================');

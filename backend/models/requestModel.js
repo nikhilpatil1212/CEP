@@ -86,10 +86,22 @@ const RequestModel = {
     sql += ` ORDER BY r.is_featured DESC, r.created_at DESC`;
 
     const result = await query(sql, params);
-    if (result.rows.length === 0) return [];
+    const nonDemoRows = (result.rows || []).filter(row => {
+      const title = (row.title || '').toLowerCase();
+      const event = (row.event_name || '').toLowerCase();
+      return (
+        row.id !== 'req-1' &&
+        !title.includes('open source ml toolkit') &&
+        !title.includes('ai smart india hackathon squad') &&
+        !title.includes('kisansetu') &&
+        !event.includes('gsoc 2026') &&
+        !event.includes('sih 2026')
+      );
+    });
+    if (nonDemoRows.length === 0) return [];
 
     // Fetch all members for these requests
-    const requestIds = result.rows.map(r => r.id);
+    const requestIds = nonDemoRows.map(r => r.id);
     const membersResult = await query(
       `SELECT * FROM team_members WHERE request_id = ANY($1::varchar[]) ORDER BY id ASC`,
       [requestIds]
@@ -101,7 +113,7 @@ const RequestModel = {
       membersByRequest[m.request_id].push(m);
     }
 
-    return result.rows.map(row => formatRequestRow(row, membersByRequest[row.id] || []));
+    return nonDemoRows.map(row => formatRequestRow(row, membersByRequest[row.id] || []));
   },
 
   async findByCreatorId(creatorId) {
@@ -151,11 +163,23 @@ const RequestModel = {
       ORDER BY r.created_at DESC
     `;
     const result = await query(sql, [userId]);
-    if (result.rows.length === 0) {
+    const nonDemoRows = (result.rows || []).filter(row => {
+      const title = (row.title || '').toLowerCase();
+      const event = (row.event_name || '').toLowerCase();
+      return (
+        row.id !== 'req-1' &&
+        !title.includes('open source ml toolkit') &&
+        !title.includes('ai smart india hackathon squad') &&
+        !title.includes('kisansetu') &&
+        !event.includes('gsoc 2026') &&
+        !event.includes('sih 2026')
+      );
+    });
+    if (nonDemoRows.length === 0) {
       return { all: [], hosted: [], joined: [] };
     }
 
-    const requestIds = result.rows.map(r => r.id);
+    const requestIds = nonDemoRows.map(r => r.id);
     const membersResult = await query(
       `SELECT * FROM team_members WHERE request_id = ANY($1::varchar[]) ORDER BY id ASC`,
       [requestIds]
@@ -167,7 +191,7 @@ const RequestModel = {
       membersByRequest[m.request_id].push(m);
     }
 
-    const allFormatted = result.rows.map(row => formatRequestRow(row, membersByRequest[row.id] || []));
+    const allFormatted = nonDemoRows.map(row => formatRequestRow(row, membersByRequest[row.id] || []));
 
     const hosted = allFormatted.filter(r => String(r.creatorId) === String(userId) || String(r.creator?.id) === String(userId));
     const joined = allFormatted.filter(r => {
